@@ -1,6 +1,6 @@
 # ✨ Mu Cephei
 
-A serene, local-first nostalgic diary application for Android, crafted with 100% Jetpack Compose and Material 3. Inspired by Herschel's Garnet Star, **Mu Cephei** provides a calm and intimate notebook experience with rich media support, customizable glassmorphic themes, encrypted backups, and P2p mesh synchronization.
+A serene, local-first nostalgic diary application for Android, crafted with 100% Jetpack Compose and Material 3. Inspired by Herschel's Garnet Star, **Mu Cephei** provides a calm and intimate notebook experience with rich media support, customizable glassmorphic themes, encrypted backups, and P2P mesh synchronization.
 
 ---
 
