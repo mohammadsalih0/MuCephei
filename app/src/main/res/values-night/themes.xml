@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark variant for proper status bar handling in system dark mode -->
+    <style name="Theme.MuCephi" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#1A1C1E</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

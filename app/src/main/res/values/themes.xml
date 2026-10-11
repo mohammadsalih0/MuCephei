@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base light application theme for Jetpack Compose app -->
+    <style name="Theme.MuCephi" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#FBF8F3</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
