@@ -15,6 +15,10 @@
 build/
 **/build/
 
+# Releases
+releases/
+**/releases/
+
 # Local configuration file (sdk.dir, etc.)
 local.properties
 
