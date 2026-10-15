@@ -105,7 +105,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Serene Main Feed Screen:
+ * Serene Capsule Screen (formerly MainFeedScreen):
  * - Top Bar with GarnetStarIcon emblem & Settings icon
  * - Quick Mic FAB & Camera FAB with stop/save toggle support and automatic permissions
  * - Reaction-specific filtering & category tabs
@@ -114,7 +114,7 @@ import java.io.File
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun MainFeedScreen(
+fun Capsule(
     repository: NoteRepository,
     p2pEngine: P2pSyncEngine,
     currentPreset: ThemePreset = ThemePreset.SUNSET_WARMTH,
@@ -139,7 +139,8 @@ fun MainFeedScreen(
     onAutoNightModeToggled: (Boolean) -> Unit = {},
     onFontScaleChanged: (Float) -> Unit = {},
     onGridViewToggled: (Boolean) -> Unit = {},
-    onGlassifyToggled: (Boolean) -> Unit = {}
+    onGlassifyToggled: (Boolean) -> Unit = {},
+    onNavigateToHaven: ((HavenRequest) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -357,7 +358,7 @@ fun MainFeedScreen(
                 title = {
                     if (isMultiSelectMode) {
                         Text(
-                            text = "${selectedNoteIds.size} selected",
+                            text = "${selectedNoteIds.size} Selected",
                             style = HandwritingTypography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -509,6 +510,19 @@ fun MainFeedScreen(
                                             val clip = android.content.ClipData.newPlainText("Notes Content", combined)
                                             clipboard.setPrimaryClip(clip)
                                             Toast.makeText(context, "${notesToCopy.size} notes copied", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Analyze with AI Haven") },
+                                        onClick = {
+                                            showSelectionMenu = false
+                                            val notesToAnalyze = activeNotes.filter { selectedNoteIds.contains(it.id) }
+                                            val combined = notesToAnalyze.joinToString("\n\n---\n\n") { "${it.title}\n\n${it.bodyText}" }
+                                            val request = HavenRequest.AnalyzeNote(
+                                                title = "${notesToAnalyze.size} Selected Notes",
+                                                bodyText = combined
+                                            )
+                                            onNavigateToHaven?.invoke(request)
                                         }
                                     )
 

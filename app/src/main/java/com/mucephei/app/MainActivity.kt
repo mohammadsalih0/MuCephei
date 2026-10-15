@@ -53,7 +53,9 @@ import com.mucephei.app.theme.HandwritingTypography
 import com.mucephei.app.theme.PaletteEngine
 import com.mucephei.app.theme.ThemePreferences
 import com.mucephei.app.ui.screens.EncryptedBackupDialog
-import com.mucephei.app.ui.screens.MainFeedScreen
+import com.mucephei.app.ui.screens.Capsule
+import com.mucephei.app.ui.screens.HavenRequest
+import com.mucephei.app.ui.screens.MainPagerContainer
 import com.mucephei.app.ui.screens.NoteDetailScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,6 +67,9 @@ import java.util.Calendar
 class MainActivity : ComponentActivity() {
 
     var sharedNoteId by mutableStateOf<String?>(null)
+        private set
+
+    var sharedWebUrl by mutableStateOf<String?>(null)
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -220,6 +225,7 @@ class MainActivity : ComponentActivity() {
                             MuCephiAppNavigation(
                                 app = app,
                                 initialSharedNoteId = sharedNoteId,
+                                initialWebUrl = sharedWebUrl,
                                 onSharedNoteConsumed = { sharedNoteId = null },
                                 currentPreset = selectedPreset,
                                 currentWallpaperUri = wallpaperPath,
@@ -309,6 +315,11 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
         val app = application as MuCepheiApplication
         when (intent.action) {
+            Intent.ACTION_VIEW -> {
+                intent.data?.let { uri ->
+                    sharedWebUrl = uri.toString()
+                }
+            }
             Intent.ACTION_SEND -> {
                 val type = intent.type ?: ""
                 if (type.startsWith("text/")) {
@@ -434,6 +445,7 @@ class MainActivity : ComponentActivity() {
 fun MuCephiAppNavigation(
     app: MuCepheiApplication,
     initialSharedNoteId: String?,
+    initialWebUrl: String?,
     onSharedNoteConsumed: () -> Unit,
     currentPreset: ThemePreset,
     currentWallpaperUri: String?,
@@ -458,6 +470,7 @@ fun MuCephiAppNavigation(
 ) {
     val navController = rememberNavController()
     var showBackupDialog by remember { mutableStateOf(false) }
+    var globalHavenRequest by remember { mutableStateOf<HavenRequest?>(null) }
 
     LaunchedEffect(initialSharedNoteId) {
         initialSharedNoteId?.let { noteId ->
@@ -478,9 +491,10 @@ fun MuCephiAppNavigation(
         startDestination = "main_feed"
     ) {
         composable("main_feed") {
-            MainFeedScreen(
+            MainPagerContainer(
                 repository = app.repository,
                 p2pEngine = app.p2pSyncEngine,
+                initialWebUrl = initialWebUrl,
                 currentPreset = currentPreset,
                 currentWallpaperUri = currentWallpaperUri,
                 currentBlurRadius = currentBlurRadius,
@@ -509,7 +523,9 @@ fun MuCephiAppNavigation(
                 onAutoNightModeToggled = onAutoNightModeToggled,
                 onFontScaleChanged = onFontScaleChanged,
                 onGridViewToggled = onGridViewToggled,
-                onGlassifyToggled = onGlassifyToggled
+                onGlassifyToggled = onGlassifyToggled,
+                externalHavenRequest = globalHavenRequest,
+                onExternalRequestConsumed = { globalHavenRequest = null }
             )
         }
 
@@ -522,6 +538,10 @@ fun MuCephiAppNavigation(
                 repository = app.repository,
                 p2pEngine = app.p2pSyncEngine,
                 onBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToHaven = { request ->
+                    globalHavenRequest = request
                     navController.popBackStack()
                 }
             )

@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
@@ -124,7 +125,8 @@ fun NoteDetailScreen(
     noteId: String?,
     repository: NoteRepository,
     p2pEngine: P2pSyncEngine,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToHaven: ((HavenRequest) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -415,6 +417,24 @@ fun NoteDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(end = 12.dp)
                     ) {
+                        // AI Analysis / Send to Haven Action Button
+                        if (onNavigateToHaven != null) {
+                            ThemedActionButton(
+                                onClick = {
+                                    onNavigateToHaven.invoke(
+                                        HavenRequest.AnalyzeNote(
+                                            title = currentNote.title.ifBlank { "Untitled Note" },
+                                            bodyText = currentNote.bodyText
+                                        )
+                                    )
+                                },
+                                icon = Icons.Default.AutoAwesome,
+                                contentDescription = "Ask AI Haven",
+                                tint = accent,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+
                         // Privacy Toggle Button (Private vs Shared)
                         ThemedActionButton(
                             onClick = {
@@ -528,33 +548,35 @@ fun NoteDetailScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     // Handwritten Body Input Field (Click anywhere to write & focus)
-                    TextField(
-                        value = currentNote.bodyText,
-                        onValueChange = { newBody ->
-                            currentNote = currentNote.copy(bodyText = newBody)
-                        },
-                        placeholder = {
-                            Text(
-                                text = "Write your quiet thoughts, memories, and stories here...",
-                                style = HandwritingTypography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
-                            )
-                        },
-                        textStyle = HandwritingTypography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = textFieldContainerColor,
-                            unfocusedContainerColor = textFieldContainerColor,
-                            disabledContainerColor = textFieldContainerColor,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 200.dp)
-                            .focusRequester(bodyFocusRequester)
-                    )
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        TextField(
+                            value = currentNote.bodyText,
+                            onValueChange = { newBody ->
+                                currentNote = currentNote.copy(bodyText = newBody)
+                            },
+                            placeholder = {
+                                Text(
+                                    text = "Write your quiet thoughts, memories, and stories here...",
+                                    style = HandwritingTypography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                )
+                            },
+                            textStyle = HandwritingTypography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = textFieldContainerColor,
+                                unfocusedContainerColor = textFieldContainerColor,
+                                disabledContainerColor = textFieldContainerColor,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 200.dp)
+                                .focusRequester(bodyFocusRequester)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 

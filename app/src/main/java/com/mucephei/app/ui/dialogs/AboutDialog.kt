@@ -77,6 +77,8 @@ fun AboutDialog(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+    val appVersion = packageInfo.versionName
 
     // Trigger reveal when scrolled near middle/end or if short content fits
     val isScrolledToEnd by remember {
@@ -143,7 +145,7 @@ fun AboutDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Version 1.0",
+                                text = "Version $appVersion",
                                 style = HandwritingTypography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )

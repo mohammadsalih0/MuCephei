@@ -1,5 +1,6 @@
 package com.mucephei.app.ui.screens
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Environment
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.WaterDrop
@@ -172,7 +174,11 @@ fun CustomThemeDialog(
                         password = if (encryptBackup) backupPassword.toCharArray() else null,
                         encrypted = encryptBackup
                     )
-                    backupStatusText = if (success) "Successfully restored journal!" else "Restore failed! Check encryption key."
+                    backupStatusText = if (success) "Successfully restored journal! Restarting..." else "Restore failed! Check encryption key."
+                    if (success) {
+                        kotlinx.coroutines.delay(1000)
+                        (context as? android.app.Activity)?.recreate()
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     backupStatusText = "Restore error: ${e.localizedMessage}"
@@ -749,6 +755,140 @@ fun CustomThemeDialog(
                         Text("Remove Wallpaper Image", style = HandwritingTypography.labelMedium)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 7: Swiping & Gesture Navigation Controls (Capsule, Haven, Oasis)
+                val swipePrefs = remember { context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE) }
+                var swipeModeFull by remember { mutableStateOf(swipePrefs.getBoolean("swipe_mode_full", true)) }
+                var edgeWidthDp by remember { mutableFloatStateOf(swipePrefs.getFloat("edge_width_dp", 48f)) }
+                var capsuleHavenSensitivity by remember { mutableFloatStateOf(swipePrefs.getFloat("capsule_haven_sensitivity", 30f)) }
+                var oasisSensitivity by remember { mutableFloatStateOf(swipePrefs.getFloat("oasis_sensitivity", 15f)) }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Gestures",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Gesture & Swiping Controls:",
+                        style = HandwritingTypography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Capsule & Haven Full-Screen Swiping",
+                            style = HandwritingTypography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (swipeModeFull) "Swipe from anywhere on screen" else "Swipe from screen edges only",
+                            style = HandwritingTypography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = swipeModeFull,
+                        onCheckedChange = { 
+                            swipeModeFull = it
+                            swipePrefs.edit().putBoolean("swipe_mode_full", it).apply()
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        )
+                    )
+                }
+
+                if (!swipeModeFull) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Edge Detection Area Width (${edgeWidthDp.toInt()}dp):",
+                        style = HandwritingTypography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Slider(
+                        value = edgeWidthDp,
+                        onValueChange = { 
+                            edgeWidthDp = it
+                            swipePrefs.edit().putFloat("edge_width_dp", it).apply()
+                        },
+                        valueRange = 24f..150f,
+                        steps = 10,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Capsule & Haven Sensitivity (Threshold: ${capsuleHavenSensitivity.toInt()}):",
+                    style = HandwritingTypography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Lower = more sensitive, Higher = less sensitive",
+                    style = HandwritingTypography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Slider(
+                    value = capsuleHavenSensitivity,
+                    onValueChange = { 
+                        capsuleHavenSensitivity = it
+                        swipePrefs.edit().putFloat("capsule_haven_sensitivity", it).apply()
+                    },
+                    valueRange = 10f..60f,
+                    steps = 10,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Oasis Toolbar Sensitivity (Threshold: ${oasisSensitivity.toInt()}):",
+                    style = HandwritingTypography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Adjust bottom toolbar swipe threshold for Oasis browser",
+                    style = HandwritingTypography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Slider(
+                    value = oasisSensitivity,
+                    onValueChange = { 
+                        oasisSensitivity = it
+                        swipePrefs.edit().putFloat("oasis_sensitivity", it).apply()
+                    },
+                    valueRange = 5f..40f,
+                    steps = 7,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary
+                    )
+                )
 
                 Spacer(modifier = Modifier.height(18.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))

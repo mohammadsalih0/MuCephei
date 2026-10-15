@@ -107,7 +107,11 @@ fun EncryptedBackupDialog(
                         RestoreMode.WALLPAPER_ONLY -> "wallpaper"
                         else -> "journal"
                     }
-                    statusText = if (success) "Successfully restored $modeLabel!" else "Restore failed! Check encryption key."
+                    statusText = if (success) "Successfully restored $modeLabel! Restarting..." else "Restore failed! Check encryption key."
+                    if (success) {
+                        kotlinx.coroutines.delay(1000)
+                        (context as? android.app.Activity)?.recreate()
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     statusText = "Error reading backup file: ${e.localizedMessage}"
