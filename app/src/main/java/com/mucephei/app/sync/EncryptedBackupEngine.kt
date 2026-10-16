@@ -40,8 +40,11 @@ data class AppSettings(
     val glassifyEnabled: Boolean,
     val lastHostIp: String,
     val customRoomCode: String,
-    val capsuleHavenSensitivity: Float?,
-    val oasisSensitivity: Float?
+    val lastRoomCode: String? = null,
+    val swipeModeFull: Boolean? = null,
+    val edgeWidthDp: Float? = null,
+    val capsuleHavenSensitivity: Float? = null,
+    val oasisSensitivity: Float? = null
 )
 
 enum class RestoreMode { ALL, SETTINGS_ONLY, WALLPAPER_ONLY }
@@ -56,11 +59,14 @@ enum class RestoreMode { ALL, SETTINGS_ONLY, WALLPAPER_ONLY }
  * 3. `settings.json`: AppSettings JSON preferences (Theme preferences & Capsule/Haven/Oasis swipe sensitivities).
  * 4. `haven_ai.json`: Haven AI preferences, chat history, and context window.
  * 5. `oasis_browser.json`: Oasis browser preferences (tabs, history, bookmarks, download dir, custom extensions).
- * 6. `media/`: Binary attachments (Photos, Audio, Video, Sketches, Documents) from `mucephei_media`.
- * 7. `vpn_profiles/`: Saved OpenVPN configuration profiles (`.ovpn` files) from `mucephi_vpn`.
- * 8. `wallpapers/`: Saved custom background wallpaper images from `filesDir/wallpapers`.
- * 9. `oasis_data/`: Oasis WebView persistent storage (Local Storage, IndexedDB, WebSQL databases, cookies) excluding cache.
- * 10. Encryption: Optional AES-256-GCM with PBKDF2WithHmacSHA256 (10,000 iterations, 16-byte salt, 12-byte IV, 128-bit tag).
+ * 6. `media/`: Binary attachments (Photos, Videos, Documents, Thumbnails) from `mucephei_media`.
+ * 7. `drawings/`: Handwritten canvas sketches from `mucephei_drawings`.
+ * 8. `audio/`: Voice memo recordings from `mucephi_audio`.
+ * 9. `connections/`: Saved P2P connection profiles (.muconn files) from `mucephi_connections`.
+ * 10. `vpn_profiles/`: Saved OpenVPN configuration profiles (`.ovpn` files) from `mucephi_vpn`.
+ * 11. `wallpapers/`: Saved custom background wallpaper images from `filesDir/wallpapers`.
+ * 12. `oasis_data/`: Oasis WebView persistent storage (Local Storage, IndexedDB, WebSQL databases, cookies) excluding cache.
+ * 13. Encryption: Optional AES-256-GCM with PBKDF2WithHmacSHA256 (10,000 iterations, 16-byte salt, 12-byte IV, 128-bit tag).
  */
 class EncryptedBackupEngine(
     private val context: Context,
@@ -81,7 +87,7 @@ class EncryptedBackupEngine(
     }
 
     /**
-     * Exports all notes, app settings, Haven AI state, Oasis browser state, custom wallpapers, media blobs, VPN profiles, and WebView persistent data into a .mucephi archive.
+     * Exports all notes, app settings, Haven AI state, Oasis browser state, custom wallpapers, media blobs, drawings, audio, connection profiles, VPN profiles, and WebView persistent data into a .mucephi archive.
      */
     suspend fun exportArchive(destinationFile: File, password: CharArray?, encrypt: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -89,8 +95,10 @@ class EncryptedBackupEngine(
             val jsonPayload = gson.toJson(notes)
 
             val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
-            val capsuleHavenSen = swipePrefs.getFloat("capsule_haven_sensitivity", 15f)
-            val oasisSen = swipePrefs.getFloat("oasis_sensitivity", 15f)
+            val swipeModeFull = if (swipePrefs.contains("swipe_mode_full")) swipePrefs.getBoolean("swipe_mode_full", true) else null
+            val edgeWidthDp = if (swipePrefs.contains("edge_width_dp")) swipePrefs.getFloat("edge_width_dp", 48f) else null
+            val capsuleHavenSen = if (swipePrefs.contains("capsule_haven_sensitivity")) swipePrefs.getFloat("capsule_haven_sensitivity", 15f) else null
+            val oasisSen = if (swipePrefs.contains("oasis_sensitivity")) swipePrefs.getFloat("oasis_sensitivity", 15f) else null
 
             val settings = AppSettings(
                 selectedPreset = themePrefs.selectedPreset.name,
@@ -108,6 +116,9 @@ class EncryptedBackupEngine(
                 glassifyEnabled = themePrefs.glassifyEnabled,
                 lastHostIp = themePrefs.lastHostIp,
                 customRoomCode = themePrefs.customRoomCode,
+                lastRoomCode = themePrefs.lastRoomCode,
+                swipeModeFull = swipeModeFull,
+                edgeWidthDp = edgeWidthDp,
                 capsuleHavenSensitivity = capsuleHavenSen,
                 oasisSensitivity = oasisSen
             )
@@ -151,6 +162,48 @@ class EncryptedBackupEngine(
                         if (file.isFile) {
                             val mediaEntry = ZipEntry("media/${file.name}")
                             zos.putNextEntry(mediaEntry)
+                            FileInputStream(file).use { fis ->
+                                fis.copyTo(zos)
+                            }
+                            zos.closeEntry()
+                        }
+                    }
+                }
+
+                val drawingsDir = File(context.filesDir, "mucephei_drawings")
+                if (drawingsDir.exists() && drawingsDir.isDirectory) {
+                    drawingsDir.listFiles()?.forEach { file ->
+                        if (file.isFile) {
+                            val drawingEntry = ZipEntry("drawings/${file.name}")
+                            zos.putNextEntry(drawingEntry)
+                            FileInputStream(file).use { fis ->
+                                fis.copyTo(zos)
+                            }
+                            zos.closeEntry()
+                        }
+                    }
+                }
+
+                val audioDir = File(context.filesDir, "mucephi_audio")
+                if (audioDir.exists() && audioDir.isDirectory) {
+                    audioDir.listFiles()?.forEach { file ->
+                        if (file.isFile) {
+                            val audioEntry = ZipEntry("audio/${file.name}")
+                            zos.putNextEntry(audioEntry)
+                            FileInputStream(file).use { fis ->
+                                fis.copyTo(zos)
+                            }
+                            zos.closeEntry()
+                        }
+                    }
+                }
+
+                val connDir = File(context.filesDir, "mucephi_connections")
+                if (connDir.exists() && connDir.isDirectory) {
+                    connDir.listFiles()?.forEach { file ->
+                        if (file.isFile) {
+                            val connEntry = ZipEntry("connections/${file.name}")
+                            zos.putNextEntry(connEntry)
                             FileInputStream(file).use { fis ->
                                 fis.copyTo(zos)
                             }
@@ -326,6 +379,27 @@ class EncryptedBackupEngine(
         }
     }
 
+    private fun fixLocalFilePath(path: String?): String? {
+        if (path.isNullOrBlank()) return path
+        if (path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://")) return path
+        val fileName = File(path).name
+        if (fileName.isBlank()) return path
+
+        val mediaFile = File(mediaDirectory, fileName)
+        if (mediaFile.exists()) return mediaFile.absolutePath
+
+        val drawingFile = File(context.filesDir, "mucephei_drawings/$fileName")
+        if (drawingFile.exists()) return drawingFile.absolutePath
+
+        val audioFile = File(context.filesDir, "mucephi_audio/$fileName")
+        if (audioFile.exists()) return audioFile.absolutePath
+
+        val wpFile = File(context.filesDir, "wallpapers/$fileName")
+        if (wpFile.exists()) return wpFile.absolutePath
+
+        return path
+    }
+
     private suspend fun restoreV2ArchiveData(
         decryptedZipBytes: ByteArray,
         restoreMode: RestoreMode
@@ -359,6 +433,36 @@ class EncryptedBackupEngine(
                             if (fileName.isNotBlank()) {
                                 val targetMediaFile = File(mediaDirectory, fileName)
                                 FileOutputStream(targetMediaFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                            }
+                        }
+                        entry.name.startsWith("drawings/") && (restoreMode == RestoreMode.ALL) -> {
+                            val fileName = entry.name.removePrefix("drawings/")
+                            if (fileName.isNotBlank()) {
+                                val drawingsDir = File(context.filesDir, "mucephei_drawings").apply { mkdirs() }
+                                val targetDrawingFile = File(drawingsDir, fileName)
+                                FileOutputStream(targetDrawingFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                            }
+                        }
+                        entry.name.startsWith("audio/") && (restoreMode == RestoreMode.ALL) -> {
+                            val fileName = entry.name.removePrefix("audio/")
+                            if (fileName.isNotBlank()) {
+                                val audioDir = File(context.filesDir, "mucephi_audio").apply { mkdirs() }
+                                val targetAudioFile = File(audioDir, fileName)
+                                FileOutputStream(targetAudioFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                            }
+                        }
+                        entry.name.startsWith("connections/") && (restoreMode == RestoreMode.ALL) -> {
+                            val fileName = entry.name.removePrefix("connections/")
+                            if (fileName.isNotBlank()) {
+                                val connDir = File(context.filesDir, "mucephi_connections").apply { mkdirs() }
+                                val targetConnFile = File(connDir, fileName)
+                                FileOutputStream(targetConnFile).use { fos ->
                                     zis.copyTo(fos)
                                 }
                             }
@@ -437,12 +541,17 @@ class EncryptedBackupEngine(
                         themePrefs.glassifyEnabled = settings.glassifyEnabled
                         themePrefs.lastHostIp = settings.lastHostIp
                         themePrefs.customRoomCode = settings.customRoomCode
+                        if (!settings.lastRoomCode.isNullOrBlank()) {
+                            themePrefs.lastRoomCode = settings.lastRoomCode
+                        }
 
                         val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
-                        swipePrefs.edit()
-                            .putFloat("capsule_haven_sensitivity", settings.capsuleHavenSensitivity ?: 15f)
-                            .putFloat("oasis_sensitivity", settings.oasisSensitivity ?: 15f)
-                            .apply()
+                        val swipeEdit = swipePrefs.edit()
+                        if (settings.swipeModeFull != null) swipeEdit.putBoolean("swipe_mode_full", settings.swipeModeFull)
+                        if (settings.edgeWidthDp != null) swipeEdit.putFloat("edge_width_dp", settings.edgeWidthDp)
+                        if (settings.capsuleHavenSensitivity != null) swipeEdit.putFloat("capsule_haven_sensitivity", settings.capsuleHavenSensitivity)
+                        if (settings.oasisSensitivity != null) swipeEdit.putFloat("oasis_sensitivity", settings.oasisSensitivity)
+                        swipeEdit.apply()
 
                         hasAnySuccessfulRestoration = true
                     }
@@ -523,7 +632,22 @@ class EncryptedBackupEngine(
                     try {
                         val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
                         restoredEntities.forEach { entity ->
-                            noteDao.reconcileLwwDelta(entity)
+                            val sanitizedMedia = entity.media.map { item ->
+                                val newUri = fixLocalFilePath(item.uri) ?: item.uri
+                                val newThumb = fixLocalFilePath(item.metadata.thumbnailUri)
+                                item.copy(
+                                    uri = newUri,
+                                    metadata = item.metadata.copy(thumbnailUri = newThumb)
+                                )
+                            }
+                            val sanitizedTheme = entity.theme?.let { th ->
+                                th.copy(
+                                    customImageUri = fixLocalFilePath(th.customImageUri),
+                                    backgroundImageUri = fixLocalFilePath(th.backgroundImageUri)
+                                )
+                            }
+                            val sanitizedEntity = entity.copy(media = sanitizedMedia, theme = sanitizedTheme)
+                            noteDao.reconcileLwwDelta(sanitizedEntity)
                         }
                         hasAnySuccessfulRestoration = true
                     } catch (e: Exception) {
@@ -638,6 +762,9 @@ class EncryptedBackupEngine(
                         themePrefs.glassifyEnabled = settings.glassifyEnabled
                         themePrefs.lastHostIp = settings.lastHostIp
                         themePrefs.customRoomCode = settings.customRoomCode
+                        if (!settings.lastRoomCode.isNullOrBlank()) {
+                            themePrefs.lastRoomCode = settings.lastRoomCode
+                        }
                         hasAnySuccessfulRestoration = true
                     }
                 } catch (e: Exception) {
@@ -650,7 +777,22 @@ class EncryptedBackupEngine(
                     try {
                         val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
                         restoredEntities.forEach { entity ->
-                            noteDao.reconcileLwwDelta(entity)
+                            val sanitizedMedia = entity.media.map { item ->
+                                val newUri = fixLocalFilePath(item.uri) ?: item.uri
+                                val newThumb = fixLocalFilePath(item.metadata.thumbnailUri)
+                                item.copy(
+                                    uri = newUri,
+                                    metadata = item.metadata.copy(thumbnailUri = newThumb)
+                                )
+                            }
+                            val sanitizedTheme = entity.theme?.let { th ->
+                                th.copy(
+                                    customImageUri = fixLocalFilePath(th.customImageUri),
+                                    backgroundImageUri = fixLocalFilePath(th.backgroundImageUri)
+                                )
+                            }
+                            val sanitizedEntity = entity.copy(media = sanitizedMedia, theme = sanitizedTheme)
+                            noteDao.reconcileLwwDelta(sanitizedEntity)
                         }
                         hasAnySuccessfulRestoration = true
                     } catch (e: Exception) {
