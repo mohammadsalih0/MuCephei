@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Celestial Blue Mu Cephei Star Foreground -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft Luminous Celestial Blue Halo Outer Glow Layer 1 -->
+    <path
+        android:fillColor="#333A86AD"
+        android:pathData="M54,14 L58,40 L76,24 L64,47 L88,44 L66,57 L88,70 L64,67 L76,90 L58,74 L54,100 L50,74 L32,90 L44,67 L20,70 L42,57 L20,44 L44,47 L32,24 L50,40 Z" />
+
+    <!-- Soft Luminous Celestial Blue Halo Layer 2 -->
+    <path
+        android:fillColor="#664D9EA8"
+        android:pathData="M54,18 L57.5,42 L72,28 L61,49 L83,47 L63,58 L83,69 L61,67 L72,88 L57.5,74 L54,98 L50.5,74 L36,88 L47,67 L25,69 L45,58 L25,47 L47,49 L36,28 L50.5,42 Z" />
+
+    <!-- Main Celestial Blue Star Core -->
+    <path
+        android:fillColor="#3A86AD"
+        android:pathData="M54,22 L57,40 L70,29 L62,47 L80,46 L64,56 L80,66 L62,65 L70,83 L57,72 L54,90 L51,72 L38,83 L46,65 L28,66 L44,56 L28,46 L46,47 L38,29 L51,40 Z" />
+
+    <!-- Inner Core Bright Cyan / White Flare -->
+    <path
+        android:fillColor="#E0F2FE"
+        android:pathData="M54,38 L56,50 L65,44 L60,54 L72,54 L62,60 L72,66 L60,66 L65,76 L56,70 L54,82 L52,70 L43,76 L48,66 L36,66 L46,60 L36,54 L48,54 L43,44 L52,50 Z" />
+
+    <!-- Central Bright Core -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,55 A 5 5 0 1 1 53.99 55 Z" />
+</vector>

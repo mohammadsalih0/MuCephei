@@ -1,0 +1,50 @@
+# Built application files
+*.apk
+*.aar
+*.bundle
+*.apks
+
+# Generated files
+/bin/
+/gen/
+/out/
+
+# Gradle related
+.gradle/
+**/ .gradle/
+build/
+**/build/
+
+# Releases
+releases/
+**/releases/
+
+# Local configuration file (sdk.dir, etc.)
+local.properties
+
+# IntelliJ/Android Studio project files
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Captures
+/captures/
+
+# Keystore files (Never commit release signing keys!)
+*.jks
+*.keystore
+
+# External native build output
+.cxx/
+/.cxx/

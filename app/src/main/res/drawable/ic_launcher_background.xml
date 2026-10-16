@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Old Paper Warm Yellowish Vintage Tint Background -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="135"
+        android:startColor="#FAF3E0"
+        android:centerColor="#F4EFE0"
+        android:endColor="#EBE3CE" />
+</shape>
