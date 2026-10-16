@@ -58,7 +58,7 @@ enum class RestoreMode { ALL, SETTINGS_ONLY, WALLPAPER_ONLY }
  * 2. `notes_db.json`: JSON array of Room database `NoteEntity` records (including NoteLocation).
  * 3. `settings.json`: AppSettings JSON preferences (Theme preferences & Capsule/Haven/Oasis swipe sensitivities).
  * 4. `haven_ai.json`: Haven AI preferences, chat history, and context window.
- * 5. `oasis_browser.json`: Oasis browser preferences (tabs, history, bookmarks, download dir, custom extensions).
+ * 5. `oasis_browser.json`: Oasis browser preferences (tabs, history, bookmarks, speed dials with favicons, download dir, custom extensions).
  * 6. `media/`: Binary attachments (Photos, Videos, Documents, Thumbnails) from `mucephei_media`.
  * 7. `drawings/`: Handwritten canvas sketches from `mucephei_drawings`.
  * 8. `audio/`: Voice memo recordings from `mucephi_audio`.

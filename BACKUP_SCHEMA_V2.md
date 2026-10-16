@@ -10,7 +10,7 @@ This document provides a comprehensive, exhaustive specification of all data typ
 - **New Data Types & Storage Backed Up**:
   - **Capsule / General App Settings (`settings.json`)**: Added Capsule & Haven swipe gesture sensitivity (`capsule_haven_sensitivity`), Oasis toolbar swipe sensitivity (`oasis_sensitivity`), swipe navigation mode toggle (`swipe_mode_full`), edge gesture width (`edge_width_dp`), and recent room code (`lastRoomCode`).
   - **Haven AI Chat History & Context Window (`haven_ai.json`)**: Added full chat message history (`chat_messages_json`), conversation context window (`context_length`), model path, temperature, token parameters, top-P/top-K/repeat penalty, system guidelines (`guideline_prompt`), prompt tweak parameters, and saved local model info entries.
-  - **Oasis Browser State & Persistent Storage (`oasis_browser.json` & `oasis_data/`)**: Added open tabs (`open_tabs_json`), active tab ID (`active_tab_id`), history (`history_json`), bookmarks (`bookmarks_json`), download directory (`download_dir`), custom extension/content-type preferences (`custom_extensions`), toolbar orientation/size/transparency/auto-popup settings, and WebView persistent storage (Local Storage, IndexedDB, WebSQL databases, and cookies from `app_webview/`) while **explicitly excluding browser cache** (`Cache`, `Code Cache`, `GPUCache`).
+  - **Oasis Browser State & Persistent Storage (`oasis_browser.json` & `oasis_data/`)**: Added open tabs (`open_tabs_json`), active tab ID (`active_tab_id`), history (`history_json`), bookmarks (`bookmarks_json`), speed dials (`speed_dial_json`), download directory (`download_dir`), custom extension/content-type preferences (`custom_extensions`), toolbar orientation/size/transparency/auto-popup settings, and WebView persistent storage (Local Storage, IndexedDB, WebSQL databases, and cookies from `app_webview/`) while **explicitly excluding browser cache** (`Cache`, `Code Cache`, `GPUCache`).
   - **Sketches & Handwritten Canvas Drawings (`drawings/`)**: Added backup and restore support for handwritten canvas sketches stored in `context.filesDir/mucephei_drawings`.
   - **Voice Memos & Audio Recordings (`audio/`)**: Added backup and restore support for voice recordings stored in `context.filesDir/mucephi_audio`.
   - **P2P Connection Profiles (`connections/`)**: Added backup and restore support for saved connection profiles (`.muconn` JSON files) stored in `context.filesDir/mucephi_connections`.
@@ -29,7 +29,7 @@ When exported, the backup archive is formatted as a ZIP container with the follo
 ├── notes_db.json              # JSON array of all Room database note records (including NoteLocation)
 ├── settings.json              # JSON object of application theme, preferences, room codes, and swipe gesture sensitivities
 ├── haven_ai.json              # JSON object of Haven AI preferences, chat history, models info, and context window
-├── oasis_browser.json         # JSON object of Oasis browser preferences (tabs, history, bookmarks, downloads, toolbar, extensions)
+├── oasis_browser.json         # JSON object of Oasis browser preferences (tabs, history, bookmarks, speed dials, downloads, toolbar, extensions)
 ├── media/                     # Directory containing local media attachment blobs from mucephei_media
 │   ├── [filename.jpg]         # Photo attachments & video thumbnails
 │   ├── [filename.mp4]         # Video attachments
@@ -133,7 +133,7 @@ When exported, the backup archive is formatted as a ZIP container with the follo
 ---
 
 ### 3.5 Oasis Browser Preferences & Persistent Storage (`oasis_browser.json` & `oasis_data/`) **[New in V2]**
-- **`oasis_browser.json`**: JSON Object representing `oasis_browser_prefs` (`open_tabs_json`, `active_tab_id`, `history_json`, `bookmarks_json`, `download_dir`, `custom_extensions`, `auto_show_downloads`, `toolbar_disabled_forever`, `toolbar_orientation`, `toolbar_transparency`, `toolbar_size`, `toolbar_auto_popup`, `toolbar_suppress_on_page_load`, `toolbar_disabled_functions`, `toolbar_function_order`).
+- **`oasis_browser.json`**: JSON Object representing `oasis_browser_prefs` (`open_tabs_json`, `active_tab_id`, `history_json`, `bookmarks_json`, `speed_dial_json`, `download_dir`, `custom_extensions`, `auto_show_downloads`, `toolbar_disabled_forever`, `toolbar_orientation`, `toolbar_transparency`, `toolbar_size`, `toolbar_auto_popup`, `toolbar_suppress_on_page_load`, `toolbar_disabled_functions`, `toolbar_function_order`).
 - **`oasis_data/`**: WebView persistent storage directory containing Local Storage, IndexedDB, WebSQL databases, and cookies (`app_webview/`), **strictly excluding** all browser cache folders (`Cache`, `Code Cache`, `GPUCache`).
 
 ---

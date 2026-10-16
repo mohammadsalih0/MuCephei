@@ -1028,6 +1028,7 @@ fun Oasis(
             OasisBottomBar(
                 addressInputState = addressInputState,
                 onAddressValueChange = { addressInputState = it },
+                historyList = historyList,
                 canGoBack = canGoBack,
                 canGoForward = canGoForward,
                 tabsCount = tabsList.size,
