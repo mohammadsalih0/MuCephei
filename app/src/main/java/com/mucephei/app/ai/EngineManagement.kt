@@ -2,6 +2,7 @@
 package com.mucephei.app.ai
 
 import android.content.Context
+import android.net.Uri
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -9,7 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.nehuatl.llamacpp.LlamaHelper
 import java.io.File
 
@@ -83,25 +86,46 @@ class LlamaCppEngine(private val context: Context) : LLMEngine {
 
                 val helper = LlamaHelper(context.contentResolver, scope, sharedFlow)
                 llamaHelper = helper
-                val path = modelFile.absolutePath
+
+                // Use Uri.fromFile so Uri.parse() in LlamaHelper gets a valid "file://" scheme
+                val modelUriString = Uri.fromFile(modelFile).toString()
                 val deferred = CompletableDeferred<Unit>()
 
-                helper.load(path, contextLength = 8192) {
-                    isLoaded = true
-                    deferred.complete(Unit)
-                }
-                deferred.await()
-
-                // Remove any transient model copies created in cacheDir by LlamaHelper
-                try {
-                    context.cacheDir.listFiles()?.forEach { file ->
-                        if (file.isFile && file.length() > 5 * 1024 * 1024 &&
-                            (file.name.endsWith(".gguf", true) || file.name.endsWith(".bin", true) || file.name.startsWith("llama"))) {
-                            file.delete()
+                val eventJob = scope.launch {
+                    sharedFlow.collect { event ->
+                        when (event) {
+                            is LlamaHelper.LLMEvent.Loaded -> {
+                                isLoaded = true
+                                if (!deferred.isCompleted) {
+                                    deferred.complete(Unit)
+                                }
+                            }
+                            is LlamaHelper.LLMEvent.Error -> {
+                                isLoaded = false
+                                val msg = event.message
+                                loadError = msg
+                                if (!deferred.isCompleted) {
+                                    deferred.completeExceptionally(RuntimeException("GGUF engine error: $msg"))
+                                }
+                            }
+                            else -> {}
                         }
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                }
+
+                try {
+                    helper.load(modelUriString, contextLength = 8192) {
+                        isLoaded = true
+                        if (!deferred.isCompleted) {
+                            deferred.complete(Unit)
+                        }
+                    }
+
+                    withTimeout(60000L) {
+                        deferred.await()
+                    }
+                } finally {
+                    eventJob.cancel()
                 }
             } catch (e: Throwable) {
                 isLoaded = false

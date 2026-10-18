@@ -580,17 +580,30 @@ fun Haven(
                     val fileName = ModelUtils.getFileNameFromUri(context, uri)
                     val existingAppFile = ModelUtils.checkExistingAppFile(context, fileName)
 
-                    val targetFile: File? = if (existingAppFile != null) {
+                    var wasCopied = false
+                    var targetFile: File? = if (existingAppFile != null) {
                         existingAppFile
                     } else {
                         ModelUtils.findDirectModelFile(context, uri, fileName)
                     }
 
-                    if (targetFile == null || !targetFile.exists()) {
+                    // If direct path doesn't exist or isn't readable, copy file to app files/storage
+                    if (targetFile == null || !targetFile.exists() || !targetFile.canRead()) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Copying $fileName to app files...", Toast.LENGTH_SHORT).show()
+                        }
+                        val copied = ModelUtils.copyUriToAppFiles(context, uri, fileName)
+                        if (copied != null && copied.exists() && copied.canRead()) {
+                            targetFile = copied
+                            wasCopied = true
+                        }
+                    }
+
+                    if (targetFile == null || !targetFile.exists() || !targetFile.canRead()) {
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                "Direct path for $fileName not found. Grant All Files Access or place model in Downloads/Mu Cephei/Models.",
+                                "Failed to access or copy $fileName. Grant All Files Access or place model in Downloads/Mu Cephei/Models.",
                                 Toast.LENGTH_LONG
                             ).show()
                             if (!ModelUtils.hasAllFilesAccess()) {
@@ -600,26 +613,15 @@ fun Haven(
                         return@launch
                     }
 
-                    if (!targetFile.canRead() && !targetFile.absolutePath.startsWith(context.filesDir.absolutePath)) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                context,
-                                "Permission denied reading ${targetFile.name}. Please grant All Files Access permission.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            ModelUtils.requestAllFilesAccess(context)
-                        }
-                        return@launch
-                    }
-
                     val modelOp = ModelOperation(context)
                     modelOp.loadModel(targetFile)
 
-                    val isAppFile = targetFile.parentFile?.absolutePath == context.filesDir.absolutePath
+                    val isAppFileLocation = targetFile.parentFile?.absolutePath == context.filesDir.absolutePath ||
+                            targetFile.parentFile?.absolutePath == ModelUtils.getAppExternalModelsDir(context)?.absolutePath
                     val info = LocalModelInfo(
                         name = fileName,
                         path = targetFile.absolutePath,
-                        isAppFile = isAppFile,
+                        isAppFile = isAppFileLocation,
                         sizeBytes = targetFile.length()
                     )
 
@@ -632,8 +634,8 @@ fun Haven(
                         availableModels = ModelUtils.getAllAvailableModels(context, prefs, gson)
                         val toastMsg = if (existingAppFile != null) {
                             "Loaded existing model from app files: $fileName"
-                        } else if (isAppFile) {
-                            "Model copied to app files & loaded"
+                        } else if (wasCopied) {
+                            "Model copied to app files & loaded: $fileName"
                         } else {
                             "Loaded directly from path without copying: $fileName"
                         }

@@ -326,6 +326,43 @@ object ModelUtils {
 
         return null
     }
+
+    fun copyUriToAppFiles(context: Context, uri: Uri, fileName: String): File? {
+        // First attempt: internal app storage (filesDir)
+        try {
+            val destFile = File(context.filesDir, fileName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (destFile.exists() && destFile.length() > 0L) {
+                return destFile
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Second attempt: external app storage (Android/data/<package>/files/Models)
+        try {
+            val extDir = getAppExternalModelsDir(context)
+            if (extDir != null) {
+                val destFile = File(extDir, fileName)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    java.io.FileOutputStream(destFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (destFile.exists() && destFile.length() > 0L) {
+                    return destFile
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return null
+    }
 }
 
 class ModelOperation(private val context: Context) {
