@@ -47,6 +47,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +57,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -156,6 +159,15 @@ fun CustomThemeDialog(
     val primaryBtnContent = if (MaterialTheme.colorScheme.primary.luminance() > 0.5f) Color.Black else Color.White
     val secondaryBtnContent = if (MaterialTheme.colorScheme.secondary.luminance() > 0.5f) Color.Black else Color.White
 
+    var showRestorePrompt by remember { mutableStateOf(false) }
+    var restoreCapsuleEntries by remember { mutableStateOf(true) }
+    var restoreCapsuleSettings by remember { mutableStateOf(true) }
+    var restoreHavenSettings by remember { mutableStateOf(true) }
+    var restoreHavenHistory by remember { mutableStateOf(true) }
+    var restoreOasisSettings by remember { mutableStateOf(true) }
+    var restoreOasisHistoryAndData by remember { mutableStateOf(true) }
+    var restoreWallpapers by remember { mutableStateOf(true) }
+
     // Restore file picker
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -169,12 +181,22 @@ fun CustomThemeDialog(
                             input.copyTo(output)
                         }
                     }
+                    val options = com.mucephei.app.sync.RestoreOptions(
+                        restoreCapsuleEntries = restoreCapsuleEntries,
+                        restoreCapsuleSettings = restoreCapsuleSettings,
+                        restoreHavenSettings = restoreHavenSettings,
+                        restoreHavenHistory = restoreHavenHistory,
+                        restoreOasisSettings = restoreOasisSettings,
+                        restoreOasisHistoryAndData = restoreOasisHistoryAndData,
+                        restoreWallpapers = restoreWallpapers
+                    )
                     val success = backupEngine.restoreArchive(
                         archiveFile = tempFile,
                         password = if (encryptBackup) backupPassword.toCharArray() else null,
-                        encrypted = encryptBackup
+                        encrypted = encryptBackup,
+                        restoreOptions = options
                     )
-                    backupStatusText = if (success) "Successfully restored journal! Restarting..." else "Restore failed! Check encryption key."
+                    backupStatusText = if (success) "Successfully restored selected parts! Restarting..." else "Restore failed! Check encryption key."
                     if (success) {
                         kotlinx.coroutines.delay(1000)
                         (context as? android.app.Activity)?.recreate()
@@ -1002,7 +1024,7 @@ fun CustomThemeDialog(
                                 backupStatusText = "Password required for encrypted backup"
                                 return@Button
                             }
-                            restoreLauncher.launch("*/*")
+                            showRestorePrompt = true
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
@@ -1041,6 +1063,82 @@ fun CustomThemeDialog(
                 }
             }
         }
+    }
+
+    if (showRestorePrompt) {
+        AlertDialog(
+            onDismissRequest = { showRestorePrompt = false },
+            title = { Text("Granular Restore Options", style = HandwritingTypography.titleLarge) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Check the specific parts of the archive you want to restore:",
+                        style = HandwritingTypography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    RestoreCheckboxRow("Capsule Entries (Notes, Media, Audio, Drawings, VPN)", restoreCapsuleEntries) { restoreCapsuleEntries = it }
+                    RestoreCheckboxRow("Capsule Settings & Themes", restoreCapsuleSettings) { restoreCapsuleSettings = it }
+                    RestoreCheckboxRow("Haven AI Settings", restoreHavenSettings) { restoreHavenSettings = it }
+                    RestoreCheckboxRow("Haven Chat History", restoreHavenHistory) { restoreHavenHistory = it }
+                    RestoreCheckboxRow("Oasis Browser Settings", restoreOasisSettings) { restoreOasisSettings = it }
+                    RestoreCheckboxRow("Oasis History, Speed Dials & Web Data", restoreOasisHistoryAndData) { restoreOasisHistoryAndData = it }
+                    RestoreCheckboxRow("Custom Wallpapers", restoreWallpapers) { restoreWallpapers = it }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = {
+                            restoreCapsuleEntries = true
+                            restoreCapsuleSettings = true
+                            restoreHavenSettings = true
+                            restoreHavenHistory = true
+                            restoreOasisSettings = true
+                            restoreOasisHistoryAndData = true
+                            restoreWallpapers = true
+                        }) {
+                            Text("Select All", style = HandwritingTypography.labelLarge)
+                        }
+                        TextButton(onClick = {
+                            restoreCapsuleEntries = false
+                            restoreCapsuleSettings = false
+                            restoreHavenSettings = false
+                            restoreHavenHistory = false
+                            restoreOasisSettings = false
+                            restoreOasisHistoryAndData = false
+                            restoreWallpapers = false
+                        }) {
+                            Text("Deselect All", style = HandwritingTypography.labelLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestorePrompt = false
+                        restoreLauncher.launch("*/*")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Select Backup File", color = primaryBtnContent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestorePrompt = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

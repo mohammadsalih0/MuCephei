@@ -328,11 +328,20 @@ fun Haven(
 
     var messages by remember {
         val json = prefs.getString("chat_messages_json", null)
-        val type = object : TypeToken<List<ChatMessage>>() {}.type
+        val type = object : TypeToken<List<ChatMessage?>>() {}.type
         mutableStateOf(
             if (json != null) {
                 try {
-                    gson.fromJson<List<ChatMessage>>(json, type) ?: listOf(
+                    val rawList = gson.fromJson<List<ChatMessage?>>(json, type)
+                    rawList?.filterNotNull()?.map { msg ->
+                        ChatMessage(
+                            id = msg.id ?: UUID.randomUUID().toString(),
+                            isUser = msg.isUser,
+                            text = msg.text ?: "",
+                            suggestions = msg.suggestions ?: emptyList(),
+                            timestamp = if (msg.timestamp <= 0L) System.currentTimeMillis() else msg.timestamp
+                        )
+                    }?.filter { it.text.isNotBlank() && it.text != "..." }?.takeIf { it.isNotEmpty() } ?: listOf(
                         ChatMessage(
                             isUser = false,
                             text = "Welcome to AI Haven. Converse with your local model or configure settings via the top-right button."
@@ -388,7 +397,7 @@ fun Haven(
                 messages = messages.mapIndexed { i, m ->
                     if (i == idx) {
                         val t = m.text
-                        val stoppedText = if (t == "..." || t.isBlank()) "[Generation stopped by user]" else "${t.trimEnd()} [Stopped]"
+                        val stoppedText = if (t == "..." || t.isNullOrBlank()) "[Generation stopped by user]" else "${t.trimEnd()} [Stopped]"
                         m.copy(text = stoppedText)
                     } else {
                         m
@@ -1518,7 +1527,8 @@ fun Haven(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            items(messages, key = { it.id }) { msg ->
+            items(messages, key = { it.id ?: UUID.randomUUID().toString() }) { msg ->
+                val safeText = msg.text ?: ""
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
@@ -1538,13 +1548,13 @@ fun Haven(
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                                 RoundedCornerShape(16.dp)
                             )
-                            .clickable { messageToExport = msg.text }
+                            .clickable { messageToExport = safeText }
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp)
                         ) {
                             MarkdownText(
-                                text = msg.text,
+                                text = safeText,
                                 style = HandwritingTypography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1591,7 +1601,7 @@ fun Haven(
 
             // Contextual Follow-up Suggestions (Generated directly by the Model)
             val lastMessage = messages.lastOrNull()
-            if (lastMessage != null && !lastMessage.isUser && !isGenerating && lastMessage.text.isNotBlank() && lastMessage.suggestions.isNotEmpty()) {
+            if (lastMessage != null && !lastMessage.isUser && !isGenerating && !lastMessage.text.isNullOrBlank() && !lastMessage.suggestions.isNullOrEmpty()) {
                 item(key = "follow_up_suggestions_${lastMessage.id}") {
                     Column(
                         modifier = Modifier

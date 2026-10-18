@@ -25,21 +25,21 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 data class AppSettings(
-    val selectedPreset: String,
-    val customThemeJson: String?,
-    val wallpaperPath: String?,
-    val blurRadius: Float,
-    val wallpaperAlpha: Float,
-    val autoNightModeEnabled: Boolean,
-    val fontScale: Float,
-    val isGridView: Boolean,
-    val vectorOpacity: Float,
-    val hideVectors: Boolean,
-    val textTransparencyEnabled: Boolean,
-    val textTransparencyAlpha: Float,
-    val glassifyEnabled: Boolean,
-    val lastHostIp: String,
-    val customRoomCode: String,
+    val selectedPreset: String? = "SUNSET_WARMTH",
+    val customThemeJson: String? = null,
+    val wallpaperPath: String? = null,
+    val blurRadius: Float = 0f,
+    val wallpaperAlpha: Float = 0.4f,
+    val autoNightModeEnabled: Boolean = false,
+    val fontScale: Float = 1.0f,
+    val isGridView: Boolean = false,
+    val vectorOpacity: Float = 0.75f,
+    val hideVectors: Boolean = false,
+    val textTransparencyEnabled: Boolean = false,
+    val textTransparencyAlpha: Float = 0.35f,
+    val glassifyEnabled: Boolean = true,
+    val lastHostIp: String? = "",
+    val customRoomCode: String? = "",
     val lastRoomCode: String? = null,
     val swipeModeFull: Boolean? = null,
     val edgeWidthDp: Float? = null,
@@ -47,7 +47,21 @@ data class AppSettings(
     val oasisSensitivity: Float? = null
 )
 
-enum class RestoreMode { ALL, SETTINGS_ONLY, WALLPAPER_ONLY }
+data class RestoreOptions(
+    val restoreCapsuleEntries: Boolean = true,
+    val restoreCapsuleSettings: Boolean = true,
+    val restoreHavenSettings: Boolean = true,
+    val restoreHavenHistory: Boolean = true,
+    val restoreOasisSettings: Boolean = true,
+    val restoreOasisHistoryAndData: Boolean = true,
+    val restoreWallpapers: Boolean = true
+) {
+    companion object {
+        val ALL = RestoreOptions(true, true, true, true, true, true, true)
+        val SETTINGS_ONLY = RestoreOptions(false, true, true, false, true, false, true)
+        val WALLPAPER_ONLY = RestoreOptions(false, true, false, false, false, false, true)
+    }
+}
 
 /**
  * Backup & Restore Engine supporting AES-256-GCM Encrypted and Unencrypted .mucephi File Archives.
@@ -300,13 +314,13 @@ class EncryptedBackupEngine(
     }
 
     /**
-     * Restores archive with support for selective restore modes (ALL, SETTINGS_ONLY, WALLPAPER_ONLY).
+     * Restores archive with granular RestoreOptions.
      */
     suspend fun restoreArchive(
         archiveFile: File,
         password: CharArray?,
         encrypted: Boolean = true,
-        restoreMode: RestoreMode = RestoreMode.ALL
+        restoreOptions: RestoreOptions = RestoreOptions.ALL
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             if (!archiveFile.exists() || archiveFile.length() == 0L) {
@@ -362,13 +376,13 @@ class EncryptedBackupEngine(
 
             val restoreResult = when {
                 detectedVersion.startsWith("V2") || detectedVersion == "2" -> {
-                    restoreV2ArchiveData(decryptedZipBytes, restoreMode)
+                    restoreV2ArchiveData(decryptedZipBytes, restoreOptions)
                 }
                 detectedVersion.startsWith("V1") || detectedVersion == "1" || detectedVersion.isBlank() -> {
-                    restoreV1ArchiveData(decryptedZipBytes, restoreMode)
+                    restoreV1ArchiveData(decryptedZipBytes, restoreOptions)
                 }
                 else -> {
-                    restoreV1ArchiveData(decryptedZipBytes, restoreMode)
+                    restoreV1ArchiveData(decryptedZipBytes, restoreOptions)
                 }
             }
 
@@ -400,9 +414,33 @@ class EncryptedBackupEngine(
         return path
     }
 
+    private fun putPrefValue(editor: android.content.SharedPreferences.Editor, k: String, v: Any?) {
+        when (v) {
+            is String -> editor.putString(k, v)
+            is Boolean -> editor.putBoolean(k, v)
+            is Float -> editor.putFloat(k, v)
+            is Double -> {
+                if (v % 1.0 == 0.0 && v >= Int.MIN_VALUE.toDouble() && v <= Int.MAX_VALUE.toDouble()) {
+                    editor.putInt(k, v.toInt())
+                } else if (v % 1.0 == 0.0 && v >= Long.MIN_VALUE.toDouble() && v <= Long.MAX_VALUE.toDouble()) {
+                    editor.putLong(k, v.toLong())
+                } else {
+                    editor.putFloat(k, v.toFloat())
+                }
+            }
+            is Int -> editor.putInt(k, v)
+            is Long -> editor.putLong(k, v)
+            else -> {
+                if (v != null) {
+                    editor.putString(k, gson.toJson(v))
+                }
+            }
+        }
+    }
+
     private suspend fun restoreV2ArchiveData(
         decryptedZipBytes: ByteArray,
-        restoreMode: RestoreMode
+        restoreOptions: RestoreOptions
     ): Boolean {
         var restoredNotesJson: String? = null
         var restoredSettingsJson: String? = null
@@ -411,97 +449,72 @@ class EncryptedBackupEngine(
         var restoredEntriesCount = 0
 
         try {
+            // Pass 1: Extract binary files based on RestoreOptions
             ZipInputStream(ByteArrayInputStream(decryptedZipBytes)).use { zis ->
                 var entry: ZipEntry? = zis.nextEntry
                 while (entry != null) {
                     restoredEntriesCount++
                     when {
-                        entry.name == "notes_db.json" && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name == "notes_db.json" && restoreOptions.restoreCapsuleEntries -> {
                             restoredNotesJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name == "settings.json" && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.SETTINGS_ONLY) -> {
+                        entry.name == "settings.json" && (restoreOptions.restoreCapsuleSettings || restoreOptions.restoreWallpapers) -> {
                             restoredSettingsJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name == "haven_ai.json" && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.SETTINGS_ONLY) -> {
+                        entry.name == "haven_ai.json" && (restoreOptions.restoreHavenSettings || restoreOptions.restoreHavenHistory) -> {
                             restoredHavenJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name == "oasis_browser.json" && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.SETTINGS_ONLY) -> {
+                        entry.name == "oasis_browser.json" && (restoreOptions.restoreOasisSettings || restoreOptions.restoreOasisHistoryAndData) -> {
                             restoredOasisJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name.startsWith("media/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("media/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("media/")
                             if (fileName.isNotBlank()) {
-                                val targetMediaFile = File(mediaDirectory, fileName)
-                                FileOutputStream(targetMediaFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(mediaDirectory, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("drawings/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("drawings/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("drawings/")
                             if (fileName.isNotBlank()) {
                                 val drawingsDir = File(context.filesDir, "mucephei_drawings").apply { mkdirs() }
-                                val targetDrawingFile = File(drawingsDir, fileName)
-                                FileOutputStream(targetDrawingFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(drawingsDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("audio/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("audio/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("audio/")
                             if (fileName.isNotBlank()) {
                                 val audioDir = File(context.filesDir, "mucephi_audio").apply { mkdirs() }
-                                val targetAudioFile = File(audioDir, fileName)
-                                FileOutputStream(targetAudioFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(audioDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("connections/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("connections/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("connections/")
                             if (fileName.isNotBlank()) {
                                 val connDir = File(context.filesDir, "mucephi_connections").apply { mkdirs() }
-                                val targetConnFile = File(connDir, fileName)
-                                FileOutputStream(targetConnFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(connDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("vpn_profiles/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("vpn_profiles/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("vpn_profiles/")
                             if (fileName.isNotBlank()) {
                                 val vpnDir = File(mediaDirectory.parentFile, "mucephi_vpn").apply { mkdirs() }
-                                val targetVpnFile = File(vpnDir, fileName)
-                                FileOutputStream(targetVpnFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(vpnDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("wallpapers/") && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.WALLPAPER_ONLY) -> {
+                        entry.name.startsWith("wallpapers/") && restoreOptions.restoreWallpapers -> {
                             val fileName = entry.name.removePrefix("wallpapers/")
                             if (fileName.isNotBlank()) {
                                 val wpDir = File(context.filesDir, "wallpapers").apply { mkdirs() }
-                                val targetWpFile = File(wpDir, fileName)
-                                FileOutputStream(targetWpFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
-                                if (targetWpFile.exists() && targetWpFile.length() > 0) {
-                                    themePrefs.wallpaperPath = targetWpFile.absolutePath
-                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                        android.widget.Toast.makeText(context, "Wallpaper restored! Please restart the app for it to take effect.", android.widget.Toast.LENGTH_LONG).show()
-                                    }
-                                }
+                                FileOutputStream(File(wpDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("oasis_data/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("oasis_data/") && restoreOptions.restoreOasisHistoryAndData -> {
                             val relativePath = entry.name.removePrefix("oasis_data/")
                             if (relativePath.isNotBlank()) {
                                 val webViewDir = File(context.dataDir, "app_webview").apply { mkdirs() }
                                 val targetFile = File(webViewDir, relativePath)
                                 targetFile.parentFile?.mkdirs()
-                                FileOutputStream(targetFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(targetFile).use { fos -> zis.copyTo(fos) }
                             }
                         }
                     }
@@ -509,171 +522,154 @@ class EncryptedBackupEngine(
                 }
             }
 
-            if (restoredEntriesCount == 0) {
-                return false
-            }
+            if (restoredEntriesCount == 0) return false
 
-            var hasAnySuccessfulRestoration = false
-
-            // Restore settings
+            // Pass 2: Restore preferences and notes selectively
             restoredSettingsJson?.let { settingsJson ->
                 try {
                     val settings = gson.fromJson(settingsJson, AppSettings::class.java)
                     if (settings != null) {
-                        themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset) } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
-                        if (settings.customThemeJson != null) {
-                            themePrefs.customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
-                        } else {
-                            themePrefs.customTheme = null
-                        }
-                        if (restoreMode == RestoreMode.ALL) {
-                            themePrefs.wallpaperPath = settings.wallpaperPath
-                        }
-                        themePrefs.blurRadius = settings.blurRadius
-                        themePrefs.wallpaperAlpha = settings.wallpaperAlpha
-                        themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
-                        themePrefs.fontScale = settings.fontScale
-                        themePrefs.isGridView = settings.isGridView
-                        themePrefs.vectorOpacity = settings.vectorOpacity
-                        themePrefs.hideVectors = settings.hideVectors
-                        themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
-                        themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
-                        themePrefs.glassifyEnabled = settings.glassifyEnabled
-                        themePrefs.lastHostIp = settings.lastHostIp
-                        themePrefs.customRoomCode = settings.customRoomCode
-                        if (!settings.lastRoomCode.isNullOrBlank()) {
-                            themePrefs.lastRoomCode = settings.lastRoomCode
+                        if (restoreOptions.restoreCapsuleSettings) {
+                            themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
+                            if (settings.customThemeJson != null) {
+                                val customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
+                                themePrefs.customTheme = customTheme?.copy(
+                                    customImageUri = fixLocalFilePath(customTheme.customImageUri),
+                                    backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
+                                )
+                            } else {
+                                themePrefs.customTheme = null
+                            }
+                            themePrefs.blurRadius = settings.blurRadius
+                            themePrefs.wallpaperAlpha = if (settings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else settings.wallpaperAlpha
+                            themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
+                            themePrefs.fontScale = settings.fontScale
+                            themePrefs.isGridView = settings.isGridView
+                            themePrefs.vectorOpacity = settings.vectorOpacity
+                            themePrefs.hideVectors = settings.hideVectors
+                            themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
+                            themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
+                            themePrefs.glassifyEnabled = settings.glassifyEnabled
+                            themePrefs.lastHostIp = settings.lastHostIp ?: ""
+                            themePrefs.customRoomCode = settings.customRoomCode ?: ""
+                            if (!settings.lastRoomCode.isNullOrBlank()) {
+                                themePrefs.lastRoomCode = settings.lastRoomCode
+                            }
+
+                            val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
+                            val swipeEdit = swipePrefs.edit()
+                            if (settings.swipeModeFull != null) swipeEdit.putBoolean("swipe_mode_full", settings.swipeModeFull)
+                            if (settings.edgeWidthDp != null) swipeEdit.putFloat("edge_width_dp", settings.edgeWidthDp)
+                            if (settings.capsuleHavenSensitivity != null) swipeEdit.putFloat("capsule_haven_sensitivity", settings.capsuleHavenSensitivity)
+                            if (settings.oasisSensitivity != null) swipeEdit.putFloat("oasis_sensitivity", settings.oasisSensitivity)
+                            swipeEdit.apply()
                         }
 
-                        val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
-                        val swipeEdit = swipePrefs.edit()
-                        if (settings.swipeModeFull != null) swipeEdit.putBoolean("swipe_mode_full", settings.swipeModeFull)
-                        if (settings.edgeWidthDp != null) swipeEdit.putFloat("edge_width_dp", settings.edgeWidthDp)
-                        if (settings.capsuleHavenSensitivity != null) swipeEdit.putFloat("capsule_haven_sensitivity", settings.capsuleHavenSensitivity)
-                        if (settings.oasisSensitivity != null) swipeEdit.putFloat("oasis_sensitivity", settings.oasisSensitivity)
-                        swipeEdit.apply()
-
-                        hasAnySuccessfulRestoration = true
+                        if (restoreOptions.restoreWallpapers) {
+                            val healedWp = fixLocalFilePath(settings.wallpaperPath)
+                            if (!healedWp.isNullOrBlank() && File(healedWp).exists()) {
+                                themePrefs.wallpaperPath = healedWp
+                            } else {
+                                val wpDir = File(context.filesDir, "wallpapers")
+                                val firstWp = wpDir.listFiles()?.firstOrNull { it.isFile }
+                                if (firstWp != null) themePrefs.wallpaperPath = firstWp.absolutePath else themePrefs.wallpaperPath = null
+                            }
+                            if (!themePrefs.wallpaperPath.isNullOrBlank()) {
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    android.widget.Toast.makeText(context, "Wallpaper restored successfully!", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
-            // Restore Haven AI prefs (handling Gson Double number deserialization properly)
             restoredHavenJson?.let { havenJson ->
                 try {
                     val type = object : TypeToken<Map<String, Any?>>() {}.type
                     val map = gson.fromJson<Map<String, Any?>>(havenJson, type)
                     val havenPrefs = context.getSharedPreferences("haven_ai_prefs", Context.MODE_PRIVATE)
                     val editor = havenPrefs.edit()
-                    editor.clear()
-                    map?.forEach { (k, v) ->
-                        when (v) {
-                            is String -> editor.putString(k, v)
-                            is Boolean -> editor.putBoolean(k, v)
-                            is Float -> editor.putFloat(k, v)
-                            is Double -> {
-                                if (v % 1.0 == 0.0 && v >= Int.MIN_VALUE.toDouble() && v <= Int.MAX_VALUE.toDouble()) {
-                                    editor.putInt(k, v.toInt())
-                                } else if (v % 1.0 == 0.0 && v >= Long.MIN_VALUE.toDouble() && v <= Long.MAX_VALUE.toDouble()) {
-                                    editor.putLong(k, v.toLong())
-                                } else {
-                                    editor.putFloat(k, v.toFloat())
-                                }
-                            }
-                            is Int -> editor.putInt(k, v)
-                            is Long -> editor.putLong(k, v)
-                        }
+
+                    if (restoreOptions.restoreHavenSettings && restoreOptions.restoreHavenHistory) {
+                        editor.clear()
+                        map?.forEach { (k, v) -> putPrefValue(editor, k, v) }
+                    } else if (!restoreOptions.restoreHavenSettings && restoreOptions.restoreHavenHistory) {
+                        val chatJson = map?.get("chat_messages_json") as? String
+                        if (chatJson != null) editor.putString("chat_messages_json", chatJson)
+                    } else if (restoreOptions.restoreHavenSettings) {
+                        val currentHistory = havenPrefs.getString("chat_messages_json", null)
+                        editor.clear()
+                        map?.forEach { (k, v) -> if (k != "chat_messages_json") putPrefValue(editor, k, v) }
+                        if (currentHistory != null) editor.putString("chat_messages_json", currentHistory)
                     }
                     editor.apply()
-                    hasAnySuccessfulRestoration = true
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
-            // Restore Oasis browser prefs (handling Gson Double number deserialization properly)
             restoredOasisJson?.let { oasisJson ->
                 try {
                     val type = object : TypeToken<Map<String, Any?>>() {}.type
                     val map = gson.fromJson<Map<String, Any?>>(oasisJson, type)
                     val oasisPrefs = context.getSharedPreferences("oasis_browser_prefs", Context.MODE_PRIVATE)
                     val editor = oasisPrefs.edit()
-                    editor.clear()
-                    map?.forEach { (k, v) ->
-                        when (v) {
-                            is String -> editor.putString(k, v)
-                            is Boolean -> editor.putBoolean(k, v)
-                            is Float -> editor.putFloat(k, v)
-                            is Double -> {
-                                if (v % 1.0 == 0.0 && v >= Int.MIN_VALUE.toDouble() && v <= Int.MAX_VALUE.toDouble()) {
-                                    editor.putInt(k, v.toInt())
-                                } else if (v % 1.0 == 0.0 && v >= Long.MIN_VALUE.toDouble() && v <= Long.MAX_VALUE.toDouble()) {
-                                    editor.putLong(k, v.toLong())
-                                } else {
-                                    editor.putFloat(k, v.toFloat())
-                                }
-                            }
-                            is Int -> editor.putInt(k, v)
-                            is Long -> editor.putLong(k, v)
-                        }
+                    val historyDataKeys = setOf("open_tabs_json", "history_json", "bookmarks_json", "speed_dial_json")
+
+                    if (restoreOptions.restoreOasisSettings && restoreOptions.restoreOasisHistoryAndData) {
+                        editor.clear()
+                        map?.forEach { (k, v) -> putPrefValue(editor, k, v) }
+                    } else if (!restoreOptions.restoreOasisSettings && restoreOptions.restoreOasisHistoryAndData) {
+                        map?.forEach { (k, v) -> if (historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
+                    } else if (restoreOptions.restoreOasisSettings) {
+                        val savedHistoryData = mutableMapOf<String, Any?>()
+                        historyDataKeys.forEach { key -> oasisPrefs.all[key]?.let { savedHistoryData[key] = it } }
+                        editor.clear()
+                        map?.forEach { (k, v) -> if (!historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
+                        savedHistoryData.forEach { (k, v) -> putPrefValue(editor, k, v) }
                     }
                     editor.apply()
-                    hasAnySuccessfulRestoration = true
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
-            // Restore notes
-            if (restoreMode == RestoreMode.ALL) {
+            if (restoreOptions.restoreCapsuleEntries) {
                 restoredNotesJson?.let { json ->
                     try {
                         val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
                         restoredEntities.forEach { entity ->
-                            val sanitizedMedia = entity.media.map { item ->
+                            val mediaList = entity.media ?: emptyList()
+                            val sanitizedMedia = mediaList.map { item ->
                                 val newUri = fixLocalFilePath(item.uri) ?: item.uri
                                 val newThumb = fixLocalFilePath(item.metadata.thumbnailUri)
-                                item.copy(
-                                    uri = newUri,
-                                    metadata = item.metadata.copy(thumbnailUri = newThumb)
-                                )
+                                item.copy(uri = newUri, metadata = item.metadata.copy(thumbnailUri = newThumb))
                             }
                             val sanitizedTheme = entity.theme?.let { th ->
-                                th.copy(
-                                    customImageUri = fixLocalFilePath(th.customImageUri),
-                                    backgroundImageUri = fixLocalFilePath(th.backgroundImageUri)
-                                )
+                                th.copy(customImageUri = fixLocalFilePath(th.customImageUri), backgroundImageUri = fixLocalFilePath(th.backgroundImageUri))
                             }
                             val sanitizedEntity = entity.copy(media = sanitizedMedia, theme = sanitizedTheme)
                             noteDao.reconcileLwwDelta(sanitizedEntity)
                         }
-                        hasAnySuccessfulRestoration = true
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
             }
 
-            if (restoreMode == RestoreMode.WALLPAPER_ONLY || restoredEntriesCount > 0) {
-                hasAnySuccessfulRestoration = true
-            }
-
-            return hasAnySuccessfulRestoration
+            return true
         } catch (e: Exception) {
             e.printStackTrace()
             return false
         }
     }
 
-    /**
-     * V1 Version-Specific Restore Handler:
-     * Unpacks and restores V1/V1.1 data types for backward compatibility.
-     */
     private suspend fun restoreV1ArchiveData(
         decryptedZipBytes: ByteArray,
-        restoreMode: RestoreMode
+        restoreOptions: RestoreOptions
     ): Boolean {
         var restoredJson: String? = null
         var restoredSettingsJson: String? = null
@@ -685,45 +681,30 @@ class EncryptedBackupEngine(
                 while (entry != null) {
                     restoredEntriesCount++
                     when {
-                        entry.name == "notes_db.json" && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name == "notes_db.json" && restoreOptions.restoreCapsuleEntries -> {
                             restoredJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name == "settings.json" && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.SETTINGS_ONLY) -> {
+                        entry.name == "settings.json" && (restoreOptions.restoreCapsuleSettings || restoreOptions.restoreWallpapers) -> {
                             restoredSettingsJson = zis.bufferedReader(Charsets.UTF_8).readText()
                         }
-                        entry.name.startsWith("media/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("media/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("media/")
                             if (fileName.isNotBlank()) {
-                                val targetMediaFile = File(mediaDirectory, fileName)
-                                FileOutputStream(targetMediaFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(mediaDirectory, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("vpn_profiles/") && (restoreMode == RestoreMode.ALL) -> {
+                        entry.name.startsWith("vpn_profiles/") && restoreOptions.restoreCapsuleEntries -> {
                             val fileName = entry.name.removePrefix("vpn_profiles/")
                             if (fileName.isNotBlank()) {
                                 val vpnDir = File(mediaDirectory.parentFile, "mucephi_vpn").apply { mkdirs() }
-                                val targetVpnFile = File(vpnDir, fileName)
-                                FileOutputStream(targetVpnFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
+                                FileOutputStream(File(vpnDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
-                        entry.name.startsWith("wallpapers/") && (restoreMode == RestoreMode.ALL || restoreMode == RestoreMode.WALLPAPER_ONLY) -> {
+                        entry.name.startsWith("wallpapers/") && restoreOptions.restoreWallpapers -> {
                             val fileName = entry.name.removePrefix("wallpapers/")
                             if (fileName.isNotBlank()) {
                                 val wpDir = File(context.filesDir, "wallpapers").apply { mkdirs() }
-                                val targetWpFile = File(wpDir, fileName)
-                                FileOutputStream(targetWpFile).use { fos ->
-                                    zis.copyTo(fos)
-                                }
-                                if (targetWpFile.exists() && targetWpFile.length() > 0) {
-                                    themePrefs.wallpaperPath = targetWpFile.absolutePath
-                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                        android.widget.Toast.makeText(context, "Wallpaper restored! Please restart the app for it to take effect.", android.widget.Toast.LENGTH_LONG).show()
-                                    }
-                                }
+                                FileOutputStream(File(wpDir, fileName)).use { fos -> zis.copyTo(fos) }
                             }
                         }
                     }
@@ -731,48 +712,57 @@ class EncryptedBackupEngine(
                 }
             }
 
-            if (restoredEntriesCount == 0) {
-                return false
-            }
-
-            var hasAnySuccessfulRestoration = false
+            if (restoredEntriesCount == 0) return false
 
             restoredSettingsJson?.let { settingsJson ->
                 try {
                     val settings = gson.fromJson(settingsJson, AppSettings::class.java)
                     if (settings != null) {
-                        themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset) } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
-                        if (settings.customThemeJson != null) {
-                            themePrefs.customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
-                        } else {
-                            themePrefs.customTheme = null
+                        if (restoreOptions.restoreCapsuleSettings) {
+                            themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
+                            if (settings.customThemeJson != null) {
+                                val customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
+                                themePrefs.customTheme = customTheme?.copy(
+                                    customImageUri = fixLocalFilePath(customTheme.customImageUri),
+                                    backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
+                                )
+                            } else {
+                                themePrefs.customTheme = null
+                            }
+                            themePrefs.blurRadius = settings.blurRadius
+                            themePrefs.wallpaperAlpha = if (settings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else settings.wallpaperAlpha
+                            themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
+                            themePrefs.fontScale = settings.fontScale
+                            themePrefs.isGridView = settings.isGridView
+                            themePrefs.vectorOpacity = settings.vectorOpacity
+                            themePrefs.hideVectors = settings.hideVectors
+                            themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
+                            themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
+                            themePrefs.glassifyEnabled = settings.glassifyEnabled
+                            themePrefs.lastHostIp = settings.lastHostIp ?: ""
+                            themePrefs.customRoomCode = settings.customRoomCode ?: ""
+                            if (!settings.lastRoomCode.isNullOrBlank()) {
+                                themePrefs.lastRoomCode = settings.lastRoomCode
+                            }
                         }
-                        if (restoreMode == RestoreMode.ALL) {
-                            themePrefs.wallpaperPath = settings.wallpaperPath
+
+                        if (restoreOptions.restoreWallpapers) {
+                            val healedWp = fixLocalFilePath(settings.wallpaperPath)
+                            if (!healedWp.isNullOrBlank() && File(healedWp).exists()) {
+                                themePrefs.wallpaperPath = healedWp
+                            } else {
+                                val wpDir = File(context.filesDir, "wallpapers")
+                                val firstWp = wpDir.listFiles()?.firstOrNull { it.isFile }
+                                if (firstWp != null) themePrefs.wallpaperPath = firstWp.absolutePath else themePrefs.wallpaperPath = null
+                            }
                         }
-                        themePrefs.blurRadius = settings.blurRadius
-                        themePrefs.wallpaperAlpha = settings.wallpaperAlpha
-                        themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
-                        themePrefs.fontScale = settings.fontScale
-                        themePrefs.isGridView = settings.isGridView
-                        themePrefs.vectorOpacity = settings.vectorOpacity
-                        themePrefs.hideVectors = settings.hideVectors
-                        themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
-                        themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
-                        themePrefs.glassifyEnabled = settings.glassifyEnabled
-                        themePrefs.lastHostIp = settings.lastHostIp
-                        themePrefs.customRoomCode = settings.customRoomCode
-                        if (!settings.lastRoomCode.isNullOrBlank()) {
-                            themePrefs.lastRoomCode = settings.lastRoomCode
-                        }
-                        hasAnySuccessfulRestoration = true
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
-            if (restoreMode == RestoreMode.ALL) {
+            if (restoreOptions.restoreCapsuleEntries) {
                 restoredJson?.let { json ->
                     try {
                         val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
@@ -780,32 +770,21 @@ class EncryptedBackupEngine(
                             val sanitizedMedia = entity.media.map { item ->
                                 val newUri = fixLocalFilePath(item.uri) ?: item.uri
                                 val newThumb = fixLocalFilePath(item.metadata.thumbnailUri)
-                                item.copy(
-                                    uri = newUri,
-                                    metadata = item.metadata.copy(thumbnailUri = newThumb)
-                                )
+                                item.copy(uri = newUri, metadata = item.metadata.copy(thumbnailUri = newThumb))
                             }
                             val sanitizedTheme = entity.theme?.let { th ->
-                                th.copy(
-                                    customImageUri = fixLocalFilePath(th.customImageUri),
-                                    backgroundImageUri = fixLocalFilePath(th.backgroundImageUri)
-                                )
+                                th.copy(customImageUri = fixLocalFilePath(th.customImageUri), backgroundImageUri = fixLocalFilePath(th.backgroundImageUri))
                             }
                             val sanitizedEntity = entity.copy(media = sanitizedMedia, theme = sanitizedTheme)
                             noteDao.reconcileLwwDelta(sanitizedEntity)
                         }
-                        hasAnySuccessfulRestoration = true
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
             }
 
-            if (restoreMode == RestoreMode.WALLPAPER_ONLY || restoredEntriesCount > 0) {
-                hasAnySuccessfulRestoration = true
-            }
-
-            return hasAnySuccessfulRestoration
+            return true
         } catch (e: Exception) {
             e.printStackTrace()
             return false
@@ -813,12 +792,9 @@ class EncryptedBackupEngine(
     }
 
     suspend fun restoreEncryptedArchive(archiveFile: File, password: CharArray): Boolean {
-        return restoreArchive(archiveFile, password, true, RestoreMode.ALL)
+        return restoreArchive(archiveFile, password, true, RestoreOptions.ALL)
     }
 
-    /**
-     * Inspects and returns the version label from an archive (e.g., "V2").
-     */
     suspend fun getArchiveVersion(
         archiveFile: File,
         password: CharArray?,
@@ -852,16 +828,21 @@ class EncryptedBackupEngine(
                 decrypted
             }
 
+            var detectedVersion = BACKUP_VERSION_LABEL
             ZipInputStream(ByteArrayInputStream(decryptedZipBytes)).use { zis ->
                 var entry: ZipEntry? = zis.nextEntry
                 while (entry != null) {
                     if (entry.name == VERSION_FILE_NAME || entry.name == "version.txt" || entry.name == "label.txt") {
-                        return@withContext zis.bufferedReader(Charsets.UTF_8).readText().trim()
+                        val ver = zis.bufferedReader(Charsets.UTF_8).readText().trim()
+                        if (ver.isNotBlank()) {
+                            detectedVersion = ver
+                        }
+                        break
                     }
                     entry = zis.nextEntry
                 }
             }
-            "V1"
+            detectedVersion
         } catch (e: Exception) {
             "UNKNOWN"
         }
@@ -870,7 +851,7 @@ class EncryptedBackupEngine(
     private fun deriveKey(password: CharArray, salt: ByteArray): SecretKey {
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val spec = PBEKeySpec(password, salt, ITERATIONS, KEY_SIZE)
-        val keyBytes = factory.generateSecret(spec).encoded
-        return SecretKeySpec(keyBytes, "AES")
+        val tmp = factory.generateSecret(spec)
+        return SecretKeySpec(tmp.encoded, "AES")
     }
 }

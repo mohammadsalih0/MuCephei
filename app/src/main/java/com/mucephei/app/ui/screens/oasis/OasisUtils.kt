@@ -27,15 +27,16 @@ val extractTextJs: String = """
     })();
 """.trimIndent()
 
-fun isUrlInput(input: String): Boolean {
+fun isUrlInput(input: String?): Boolean {
+    if (input.isNullOrBlank()) return false
     val trimmed = input.trim()
     return trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
            (trimmed.contains(".") && !trimmed.contains(" ") && !trimmed.startsWith("localhost"))
 }
 
-fun getFaviconUrl(url: String, customFaviconUrl: String? = null): String {
+fun getFaviconUrl(url: String?, customFaviconUrl: String? = null): String {
     if (!customFaviconUrl.isNullOrBlank()) return customFaviconUrl
-    if (url.isBlank()) return ""
+    if (url.isNullOrBlank()) return ""
     val cleanUrl = if (url.startsWith("http://") || url.startsWith("https://")) url else "https://$url"
     val domain = try {
         val uri = Uri.parse(cleanUrl)

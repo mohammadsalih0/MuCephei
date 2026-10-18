@@ -157,8 +157,9 @@ object ModelUtils {
     fun getSavedModels(prefs: SharedPreferences, gson: Gson = Gson()): List<LocalModelInfo> {
         val json = prefs.getString("saved_models_json", null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<LocalModelInfo>>() {}.type
-            gson.fromJson<List<LocalModelInfo>>(json, type) ?: emptyList()
+            val type = object : TypeToken<List<LocalModelInfo?>>() {}.type
+            val rawList = gson.fromJson<List<LocalModelInfo?>>(json, type) ?: return emptyList()
+            rawList.filterNotNull().filter { !it.name.isNullOrBlank() && !it.path.isNullOrBlank() }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()

@@ -350,6 +350,7 @@ fun NoteDetailScreen(
     val themeColors = currentNote.theme
     val surface = if (themeColors != null) PaletteEngine.hexToColor(themeColors.surfaceColorHex) else MaterialTheme.colorScheme.surface
     val accent = if (themeColors != null) PaletteEngine.hexToColor(themeColors.accentColorHex) else MaterialTheme.colorScheme.primary
+    val textColor = if (themeColors != null) PaletteEngine.hexToColor(themeColors.textColorHex) else MaterialTheme.colorScheme.onSurface
 
     // Lightbox, Video, & Media Options Dialogs
     activeLightboxMedia?.let { media ->
@@ -391,7 +392,7 @@ fun NoteDetailScreen(
                     Text(
                         text = if (currentNote.title.isBlank()) "Journal Entry" else currentNote.title,
                         style = HandwritingTypography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = textColor,
                         maxLines = 1
                     )
                 },
@@ -407,7 +408,7 @@ fun NoteDetailScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = textColor
                         )
                     }
                 },

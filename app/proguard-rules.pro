@@ -4,6 +4,8 @@
     @com.google.gson.annotations.SerializedName <fields>;
 }
 -keep class com.mucephei.app.data.model.** { *; }
+-keep class com.mucephei.app.ui.screens.** { *; }
+-keep class com.mucephei.app.sync.** { *; }
 -keep class com.mucephei.app.ai.** { *; }
 
 # Room Database

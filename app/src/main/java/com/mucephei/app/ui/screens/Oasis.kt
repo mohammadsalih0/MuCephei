@@ -3,6 +3,7 @@ package com.mucephei.app.ui.screens
 
 import android.app.Activity
 import android.content.Context
+import java.util.UUID
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -84,8 +85,17 @@ fun Oasis(
         val savedJson = prefs.getString("open_tabs_json", null)
         val restoredTabs: List<BrowserTab>? = if (!savedJson.isNullOrBlank()) {
             try {
-                val type = object : TypeToken<List<BrowserTab>>() {}.type
-                gson.fromJson<List<BrowserTab>>(savedJson, type)
+                val type = object : TypeToken<List<BrowserTab?>>() {}.type
+                val rawTabs = gson.fromJson<List<BrowserTab?>>(savedJson, type)
+                rawTabs?.filterNotNull()?.map { tab ->
+                    val resolvedUrl = if (tab.url == "about:blank") "" else (tab.url ?: "")
+                    BrowserTab(
+                        id = tab.id ?: UUID.randomUUID().toString(),
+                        url = resolvedUrl,
+                        title = if (resolvedUrl.isBlank()) "Speed Dial" else (tab.title ?: "Web"),
+                        scrollY = tab.scrollY
+                    )
+                }
             } catch (_: Exception) {
                 null
             }
@@ -125,22 +135,44 @@ fun Oasis(
     // Persistent History & Bookmarks via Gson
     var historyList by remember {
         val json = prefs.getString("history_json", null)
-        val type = object : TypeToken<List<HistoryItem>>() {}.type
-        mutableStateOf(if (json != null) gson.fromJson<List<HistoryItem>>(json, type) else emptyList())
+        val type = object : TypeToken<List<HistoryItem?>>() {}.type
+        val restored = if (!json.isNullOrBlank()) {
+            try {
+                gson.fromJson<List<HistoryItem?>>(json, type)?.filterNotNull()?.map { h ->
+                    HistoryItem(url = h.url ?: "", title = h.title ?: "", timestamp = h.timestamp)
+                }
+            } catch (_: Exception) { null }
+        } else null
+        mutableStateOf(restored ?: emptyList())
     }
 
     var bookmarksList by remember {
         val json = prefs.getString("bookmarks_json", null)
-        val type = object : TypeToken<List<BookmarkItem>>() {}.type
-        mutableStateOf(if (json != null) gson.fromJson<List<BookmarkItem>>(json, type) else emptyList())
+        val type = object : TypeToken<List<BookmarkItem?>>() {}.type
+        val restored = if (!json.isNullOrBlank()) {
+            try {
+                gson.fromJson<List<BookmarkItem?>>(json, type)?.filterNotNull()?.map { b ->
+                    BookmarkItem(url = b.url ?: "", title = b.title ?: "")
+                }
+            } catch (_: Exception) { null }
+        } else null
+        mutableStateOf(restored ?: emptyList())
     }
 
     var speedDialList by remember {
         val json = prefs.getString("speed_dial_json", null)
-        val type = object : TypeToken<List<SpeedDialItem>>() {}.type
+        val type = object : TypeToken<List<SpeedDialItem?>>() {}.type
         val restored: List<SpeedDialItem>? = if (!json.isNullOrBlank()) {
             try {
-                gson.fromJson<List<SpeedDialItem>>(json, type)
+                val rawSpeed = gson.fromJson<List<SpeedDialItem?>>(json, type)
+                rawSpeed?.filterNotNull()?.filter { !it.url.isBlank() && it.url != "about:blank" }?.map { item ->
+                    SpeedDialItem(
+                        title = item.title ?: "",
+                        url = item.url ?: "",
+                        subtitle = item.subtitle ?: "",
+                        faviconUrl = item.faviconUrl
+                    )
+                }?.takeIf { it.isNotEmpty() }
             } catch (_: Exception) {
                 null
             }
