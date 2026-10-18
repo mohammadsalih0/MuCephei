@@ -319,8 +319,12 @@ fun EncryptedBackupDialog(
                             }
                             scope.launch {
                                 try {
-                                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                    val backupDir = File(downloadsDir, "Mu Cephei").apply { mkdirs() }
+                                    val backupDir = try {
+                                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                        File(downloadsDir, "Mu Cephei").apply { mkdirs() }
+                                    } catch (e: Exception) {
+                                        File(context.filesDir, "Mu_Cephei_Backups").apply { mkdirs() }
+                                    }
                                     val exportFile = File(backupDir, "mcb_${System.currentTimeMillis()}.mucephi")
 
                                     val success = backupEngine.exportArchive(
@@ -328,7 +332,7 @@ fun EncryptedBackupDialog(
                                         password = if (encryptEnabled) passwordInput.toCharArray() else null,
                                         encrypt = encryptEnabled
                                     )
-                                    statusText = if (success) "Saved to Downloads/Mu Cephei/${exportFile.name}" else "Export failed!"
+                                    statusText = if (success) "Saved to ${backupDir.name}/${exportFile.name}" else "Export failed!"
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                     statusText = "Export error: ${e.localizedMessage}"
