@@ -383,7 +383,6 @@ class EncryptedBackupEngine(
 
             // Strict Schema Validation: prevent false-positive success on empty/truncated archives
             if (restoreOptions.restoreCapsuleEntries && !hasNotesDb && !File(stagingDir, "notes_db.json").exists()) {
-                // If notes_db.json was expected for capsule entries restoration but missing, fail safely
                 stagingDir.deleteRecursively()
                 return@withContext false
             }
@@ -464,7 +463,33 @@ class EncryptedBackupEngine(
 
     private suspend fun restoreV2FromStaging(stagingDir: File, restoreOptions: RestoreOptions): Boolean {
         return try {
-            // 1. Copy binary assets from staging to production
+            // Step 1: Pre-parse and validate all JSON models from staging before modifying any production data
+            val settingsFile = File(stagingDir, "settings.json")
+            val parsedSettings = if (settingsFile.exists() && (restoreOptions.restoreCapsuleSettings || restoreOptions.restoreWallpapers)) {
+                gson.fromJson(settingsFile.readText(Charsets.UTF_8), AppSettings::class.java)
+            } else null
+
+            val havenFile = File(stagingDir, "haven_ai.json")
+            val parsedHavenMap = if (havenFile.exists()) {
+                val havenJson = havenFile.readText(Charsets.UTF_8)
+                val type = object : TypeToken<Map<String, Any?>>() {}.type
+                gson.fromJson<Map<String, Any?>>(havenJson, type)
+            } else null
+
+            val oasisFile = File(stagingDir, "oasis_browser.json")
+            val parsedOasisMap = if (oasisFile.exists()) {
+                val oasisJson = oasisFile.readText(Charsets.UTF_8)
+                val type = object : TypeToken<Map<String, Any?>>() {}.type
+                gson.fromJson<Map<String, Any?>>(oasisJson, type)
+            } else null
+
+            val notesFile = File(stagingDir, "notes_db.json")
+            val parsedNotes = if (notesFile.exists() && restoreOptions.restoreCapsuleEntries) {
+                val json = notesFile.readText(Charsets.UTF_8)
+                gson.fromJson(json, Array<NoteEntity>::class.java).toList()
+            } else null
+
+            // Step 2: Copy binary assets from staging to production
             if (restoreOptions.restoreCapsuleEntries) {
                 File(stagingDir, "media").takeIf { it.exists() && it.isDirectory }?.listFiles()?.forEach { file ->
                     if (file.isFile) file.copyTo(File(mediaDirectory, file.name), overwrite = true)
@@ -500,116 +525,97 @@ class EncryptedBackupEngine(
                 }
             }
 
-            // 2. Restore settings.json
-            val settingsFile = File(stagingDir, "settings.json")
-            if (settingsFile.exists() && (restoreOptions.restoreCapsuleSettings || restoreOptions.restoreWallpapers)) {
-                val settingsJson = settingsFile.readText(Charsets.UTF_8)
-                val settings = gson.fromJson(settingsJson, AppSettings::class.java)
-                if (settings != null) {
-                    if (restoreOptions.restoreCapsuleSettings) {
-                        themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
-                        if (settings.customThemeJson != null) {
-                            val customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
-                            themePrefs.customTheme = customTheme?.copy(
-                                customImageUri = fixLocalFilePath(customTheme.customImageUri),
-                                backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
-                            )
-                        } else {
-                            themePrefs.customTheme = null
-                        }
-                        themePrefs.blurRadius = settings.blurRadius
-                        themePrefs.wallpaperAlpha = if (settings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else settings.wallpaperAlpha
-                        themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
-                        themePrefs.fontScale = settings.fontScale
-                        themePrefs.isGridView = settings.isGridView
-                        themePrefs.vectorOpacity = settings.vectorOpacity
-                        themePrefs.hideVectors = settings.hideVectors
-                        themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
-                        themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
-                        themePrefs.glassifyEnabled = settings.glassifyEnabled
-                        themePrefs.lastHostIp = settings.lastHostIp ?: ""
-                        themePrefs.customRoomCode = settings.customRoomCode ?: ""
-                        if (!settings.lastRoomCode.isNullOrBlank()) {
-                            themePrefs.lastRoomCode = settings.lastRoomCode
-                        }
-
-                        val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
-                        val swipeEdit = swipePrefs.edit()
-                        if (settings.swipeModeFull != null) swipeEdit.putBoolean("swipe_mode_full", settings.swipeModeFull)
-                        if (settings.edgeWidthDp != null) swipeEdit.putFloat("edge_width_dp", settings.edgeWidthDp)
-                        if (settings.capsuleHavenSensitivity != null) swipeEdit.putFloat("capsule_haven_sensitivity", settings.capsuleHavenSensitivity)
-                        if (settings.oasisSensitivity != null) swipeEdit.putFloat("oasis_sensitivity", settings.oasisSensitivity)
-                        swipeEdit.apply()
+            // Step 3: Apply validated preferences and database changes
+            if (parsedSettings != null) {
+                if (restoreOptions.restoreCapsuleSettings) {
+                    themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(parsedSettings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
+                    if (parsedSettings.customThemeJson != null) {
+                        val customTheme = gson.fromJson(parsedSettings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
+                        themePrefs.customTheme = customTheme?.copy(
+                            customImageUri = fixLocalFilePath(customTheme.customImageUri),
+                            backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
+                        )
+                    } else {
+                        themePrefs.customTheme = null
+                    }
+                    themePrefs.blurRadius = parsedSettings.blurRadius
+                    themePrefs.wallpaperAlpha = if (parsedSettings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else parsedSettings.wallpaperAlpha
+                    themePrefs.autoNightModeEnabled = parsedSettings.autoNightModeEnabled
+                    themePrefs.fontScale = parsedSettings.fontScale
+                    themePrefs.isGridView = parsedSettings.isGridView
+                    themePrefs.vectorOpacity = parsedSettings.vectorOpacity
+                    themePrefs.hideVectors = parsedSettings.hideVectors
+                    themePrefs.textTransparencyEnabled = parsedSettings.textTransparencyEnabled
+                    themePrefs.textTransparencyAlpha = parsedSettings.textTransparencyAlpha
+                    themePrefs.glassifyEnabled = parsedSettings.glassifyEnabled
+                    themePrefs.lastHostIp = parsedSettings.lastHostIp ?: ""
+                    themePrefs.customRoomCode = parsedSettings.customRoomCode ?: ""
+                    if (!parsedSettings.lastRoomCode.isNullOrBlank()) {
+                        themePrefs.lastRoomCode = parsedSettings.lastRoomCode
                     }
 
-                    if (restoreOptions.restoreWallpapers) {
-                        val healedWp = fixLocalFilePath(settings.wallpaperPath)
-                        if (!healedWp.isNullOrBlank() && File(healedWp).exists()) {
-                            themePrefs.wallpaperPath = healedWp
-                        } else {
-                            val wpDir = File(context.filesDir, "wallpapers")
-                            val firstWp = wpDir.listFiles()?.firstOrNull { it.isFile }
-                            themePrefs.wallpaperPath = firstWp?.absolutePath
-                        }
+                    val swipePrefs = context.getSharedPreferences("app_swipe_settings", Context.MODE_PRIVATE)
+                    val swipeEdit = swipePrefs.edit()
+                    if (parsedSettings.swipeModeFull != null) swipeEdit.putBoolean("swipe_mode_full", parsedSettings.swipeModeFull)
+                    if (parsedSettings.edgeWidthDp != null) swipeEdit.putFloat("edge_width_dp", parsedSettings.edgeWidthDp)
+                    if (parsedSettings.capsuleHavenSensitivity != null) swipeEdit.putFloat("capsule_haven_sensitivity", parsedSettings.capsuleHavenSensitivity)
+                    if (parsedSettings.oasisSensitivity != null) swipeEdit.putFloat("oasis_sensitivity", parsedSettings.oasisSensitivity)
+                    swipeEdit.apply()
+                }
+
+                if (restoreOptions.restoreWallpapers) {
+                    val healedWp = fixLocalFilePath(parsedSettings.wallpaperPath)
+                    if (!healedWp.isNullOrBlank() && File(healedWp).exists()) {
+                        themePrefs.wallpaperPath = healedWp
+                    } else {
+                        val wpDir = File(context.filesDir, "wallpapers")
+                        val firstWp = wpDir.listFiles()?.firstOrNull { it.isFile }
+                        themePrefs.wallpaperPath = firstWp?.absolutePath
                     }
                 }
             }
 
-            // 3. Restore haven_ai.json
-            val havenFile = File(stagingDir, "haven_ai.json")
-            if (havenFile.exists()) {
-                val havenJson = havenFile.readText(Charsets.UTF_8)
-                val type = object : TypeToken<Map<String, Any?>>() {}.type
-                val map = gson.fromJson<Map<String, Any?>>(havenJson, type)
+            if (parsedHavenMap != null) {
                 val havenPrefs = context.getSharedPreferences("haven_ai_prefs", Context.MODE_PRIVATE)
                 val editor = havenPrefs.edit()
 
                 if (restoreOptions.restoreHavenSettings && restoreOptions.restoreHavenHistory) {
                     editor.clear()
-                    map?.forEach { (k, v) -> putPrefValue(editor, k, v) }
+                    parsedHavenMap.forEach { (k, v) -> putPrefValue(editor, k, v) }
                 } else if (!restoreOptions.restoreHavenSettings && restoreOptions.restoreHavenHistory) {
-                    val chatJson = map?.get("chat_messages_json") as? String
+                    val chatJson = parsedHavenMap["chat_messages_json"] as? String
                     if (chatJson != null) editor.putString("chat_messages_json", chatJson)
                 } else if (restoreOptions.restoreHavenSettings) {
                     val currentHistory = havenPrefs.getString("chat_messages_json", null)
                     editor.clear()
-                    map?.forEach { (k, v) -> if (k != "chat_messages_json") putPrefValue(editor, k, v) }
+                    parsedHavenMap.forEach { (k, v) -> if (k != "chat_messages_json") putPrefValue(editor, k, v) }
                     if (currentHistory != null) editor.putString("chat_messages_json", currentHistory)
                 }
                 editor.apply()
             }
 
-            // 4. Restore oasis_browser.json
-            val oasisFile = File(stagingDir, "oasis_browser.json")
-            if (oasisFile.exists()) {
-                val oasisJson = oasisFile.readText(Charsets.UTF_8)
-                val type = object : TypeToken<Map<String, Any?>>() {}.type
-                val map = gson.fromJson<Map<String, Any?>>(oasisJson, type)
+            if (parsedOasisMap != null) {
                 val oasisPrefs = context.getSharedPreferences("oasis_browser_prefs", Context.MODE_PRIVATE)
                 val editor = oasisPrefs.edit()
                 val historyDataKeys = setOf("open_tabs_json", "history_json", "bookmarks_json", "speed_dial_json")
 
                 if (restoreOptions.restoreOasisSettings && restoreOptions.restoreOasisHistoryAndData) {
                     editor.clear()
-                    map?.forEach { (k, v) -> putPrefValue(editor, k, v) }
+                    parsedOasisMap.forEach { (k, v) -> putPrefValue(editor, k, v) }
                 } else if (!restoreOptions.restoreOasisSettings && restoreOptions.restoreOasisHistoryAndData) {
-                    map?.forEach { (k, v) -> if (historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
+                    parsedOasisMap.forEach { (k, v) -> if (historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
                 } else if (restoreOptions.restoreOasisSettings) {
                     val savedHistoryData = mutableMapOf<String, Any?>()
                     historyDataKeys.forEach { key -> oasisPrefs.all[key]?.let { savedHistoryData[key] = it } }
                     editor.clear()
-                    map?.forEach { (k, v) -> if (!historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
+                    parsedOasisMap.forEach { (k, v) -> if (!historyDataKeys.contains(k)) putPrefValue(editor, k, v) }
                     savedHistoryData.forEach { (k, v) -> putPrefValue(editor, k, v) }
                 }
                 editor.apply()
             }
 
-            // 5. Restore notes_db.json
-            val notesFile = File(stagingDir, "notes_db.json")
-            if (notesFile.exists() && restoreOptions.restoreCapsuleEntries) {
-                val json = notesFile.readText(Charsets.UTF_8)
-                val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
-                restoredEntities.forEach { entity ->
+            if (parsedNotes != null) {
+                parsedNotes.forEach { entity ->
                     val mediaList = entity.media ?: emptyList()
                     val sanitizedMedia = mediaList.map { item ->
                         val newUri = fixLocalFilePath(item.uri) ?: item.uri
@@ -633,6 +639,18 @@ class EncryptedBackupEngine(
 
     private suspend fun restoreV1FromStaging(stagingDir: File, restoreOptions: RestoreOptions): Boolean {
         return try {
+            // Step 1: Pre-parse JSON files
+            val settingsFile = File(stagingDir, "settings.json")
+            val parsedSettings = if (settingsFile.exists() && restoreOptions.restoreCapsuleSettings) {
+                gson.fromJson(settingsFile.readText(Charsets.UTF_8), AppSettings::class.java)
+            } else null
+
+            val notesFile = File(stagingDir, "notes_db.json")
+            val parsedNotes = if (notesFile.exists() && restoreOptions.restoreCapsuleEntries) {
+                gson.fromJson(notesFile.readText(Charsets.UTF_8), Array<NoteEntity>::class.java).toList()
+            } else null
+
+            // Step 2: Copy binary files from staging to production
             if (restoreOptions.restoreCapsuleEntries) {
                 File(stagingDir, "media").takeIf { it.exists() && it.isDirectory }?.listFiles()?.forEach { file ->
                     if (file.isFile) file.copyTo(File(mediaDirectory, file.name), overwrite = true)
@@ -648,44 +666,37 @@ class EncryptedBackupEngine(
                 }
             }
 
-            val settingsFile = File(stagingDir, "settings.json")
-            if (settingsFile.exists() && restoreOptions.restoreCapsuleSettings) {
-                val settingsJson = settingsFile.readText(Charsets.UTF_8)
-                val settings = gson.fromJson(settingsJson, AppSettings::class.java)
-                if (settings != null) {
-                    themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(settings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
-                    if (settings.customThemeJson != null) {
-                        val customTheme = gson.fromJson(settings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
-                        themePrefs.customTheme = customTheme?.copy(
-                            customImageUri = fixLocalFilePath(customTheme.customImageUri),
-                            backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
-                        )
-                    } else {
-                        themePrefs.customTheme = null
-                    }
-                    themePrefs.blurRadius = settings.blurRadius
-                    themePrefs.wallpaperAlpha = if (settings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else settings.wallpaperAlpha
-                    themePrefs.autoNightModeEnabled = settings.autoNightModeEnabled
-                    themePrefs.fontScale = settings.fontScale
-                    themePrefs.isGridView = settings.isGridView
-                    themePrefs.vectorOpacity = settings.vectorOpacity
-                    themePrefs.hideVectors = settings.hideVectors
-                    themePrefs.textTransparencyEnabled = settings.textTransparencyEnabled
-                    themePrefs.textTransparencyAlpha = settings.textTransparencyAlpha
-                    themePrefs.glassifyEnabled = settings.glassifyEnabled
-                    themePrefs.lastHostIp = settings.lastHostIp ?: ""
-                    themePrefs.customRoomCode = settings.customRoomCode ?: ""
-                    if (!settings.lastRoomCode.isNullOrBlank()) {
-                        themePrefs.lastRoomCode = settings.lastRoomCode
-                    }
+            // Step 3: Apply preferences and database changes
+            if (parsedSettings != null) {
+                themePrefs.selectedPreset = try { com.mucephei.app.data.model.ThemePreset.valueOf(parsedSettings.selectedPreset ?: "SUNSET_WARMTH") } catch (e: Exception) { com.mucephei.app.data.model.ThemePreset.SUNSET_WARMTH }
+                if (parsedSettings.customThemeJson != null) {
+                    val customTheme = gson.fromJson(parsedSettings.customThemeJson, com.mucephei.app.data.model.NoteTheme::class.java)
+                    themePrefs.customTheme = customTheme?.copy(
+                        customImageUri = fixLocalFilePath(customTheme.customImageUri),
+                        backgroundImageUri = fixLocalFilePath(customTheme.backgroundImageUri)
+                    )
+                } else {
+                    themePrefs.customTheme = null
+                }
+                themePrefs.blurRadius = parsedSettings.blurRadius
+                themePrefs.wallpaperAlpha = if (parsedSettings.wallpaperAlpha <= 0.01f && !themePrefs.wallpaperPath.isNullOrBlank()) 0.4f else parsedSettings.wallpaperAlpha
+                themePrefs.autoNightModeEnabled = parsedSettings.autoNightModeEnabled
+                themePrefs.fontScale = parsedSettings.fontScale
+                themePrefs.isGridView = parsedSettings.isGridView
+                themePrefs.vectorOpacity = parsedSettings.vectorOpacity
+                themePrefs.hideVectors = parsedSettings.hideVectors
+                themePrefs.textTransparencyEnabled = parsedSettings.textTransparencyEnabled
+                themePrefs.textTransparencyAlpha = parsedSettings.textTransparencyAlpha
+                themePrefs.glassifyEnabled = parsedSettings.glassifyEnabled
+                themePrefs.lastHostIp = parsedSettings.lastHostIp ?: ""
+                themePrefs.customRoomCode = parsedSettings.customRoomCode ?: ""
+                if (!parsedSettings.lastRoomCode.isNullOrBlank()) {
+                    themePrefs.lastRoomCode = parsedSettings.lastRoomCode
                 }
             }
 
-            val notesFile = File(stagingDir, "notes_db.json")
-            if (notesFile.exists() && restoreOptions.restoreCapsuleEntries) {
-                val json = notesFile.readText(Charsets.UTF_8)
-                val restoredEntities = gson.fromJson(json, Array<NoteEntity>::class.java).toList()
-                restoredEntities.forEach { entity ->
+            if (parsedNotes != null) {
+                parsedNotes.forEach { entity ->
                     val sanitizedMedia = entity.media.map { item ->
                         val newUri = fixLocalFilePath(item.uri) ?: item.uri
                         val newThumb = fixLocalFilePath(item.metadata.thumbnailUri)
