@@ -5,7 +5,6 @@ import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Close
@@ -30,7 +26,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +51,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.mucephei.app.sync.EncryptedBackupEngine
-import com.mucephei.app.sync.RestoreOptions
+import com.mucephei.app.sync.RestoreMode
 import com.mucephei.app.theme.HandwritingTypography
 import com.mucephei.app.theme.sketchyBorder
 import kotlinx.coroutines.launch
@@ -67,7 +62,7 @@ import java.io.FileOutputStream
  * Journal Backup & Restore Dialog:
  * - Saves backups to Downloads/Mu Cephei by default
  * - Optional AES-256 encryption toggle (with dynamic icon change: Lock vs Backup)
- * - Prompts user to granularly choose what specific parts to restore before file picking
+ * - Prompts user to choose what to restore (Full, Settings Only, Wallpaper Only) before file picking
  * - Contrast-aware button text/icon colors across all themes (including Dark Glass)
  */
 @Composable
@@ -80,17 +75,9 @@ fun EncryptedBackupDialog(
 
     var passwordInput by remember { mutableStateOf("") }
     var encryptEnabled by remember { mutableStateOf(false) }
+    var restoreMode by remember { mutableStateOf(RestoreMode.ALL) }
     var showRestorePrompt by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
-
-    // Granular Restore Options States
-    var restoreCapsuleEntries by remember { mutableStateOf(true) }
-    var restoreCapsuleSettings by remember { mutableStateOf(true) }
-    var restoreHavenSettings by remember { mutableStateOf(true) }
-    var restoreHavenHistory by remember { mutableStateOf(true) }
-    var restoreOasisSettings by remember { mutableStateOf(true) }
-    var restoreOasisHistoryAndData by remember { mutableStateOf(true) }
-    var restoreWallpapers by remember { mutableStateOf(true) }
 
     val primaryBtnContent = if (MaterialTheme.colorScheme.primary.luminance() > 0.5f) Color.Black else Color.White
     val secondaryBtnContent = if (MaterialTheme.colorScheme.secondary.luminance() > 0.5f) Color.Black else Color.White
@@ -109,23 +96,18 @@ fun EncryptedBackupDialog(
                         }
                     }
 
-                    val options = RestoreOptions(
-                        restoreCapsuleEntries = restoreCapsuleEntries,
-                        restoreCapsuleSettings = restoreCapsuleSettings,
-                        restoreHavenSettings = restoreHavenSettings,
-                        restoreHavenHistory = restoreHavenHistory,
-                        restoreOasisSettings = restoreOasisSettings,
-                        restoreOasisHistoryAndData = restoreOasisHistoryAndData,
-                        restoreWallpapers = restoreWallpapers
-                    )
-
                     val success = backupEngine.restoreArchive(
                         archiveFile = tempFile,
                         password = if (encryptEnabled) passwordInput.toCharArray() else null,
                         encrypted = encryptEnabled,
-                        restoreOptions = options
+                        restoreMode = restoreMode
                     )
-                    statusText = if (success) "Successfully restored selected parts! Restarting..." else "Restore failed! Check encryption key."
+                    val modeLabel = when (restoreMode) {
+                        RestoreMode.SETTINGS_ONLY -> "settings"
+                        RestoreMode.WALLPAPER_ONLY -> "wallpaper"
+                        else -> "journal"
+                    }
+                    statusText = if (success) "Successfully restored $modeLabel! Restarting..." else "Restore failed! Check encryption key."
                     if (success) {
                         kotlinx.coroutines.delay(1000)
                         (context as? android.app.Activity)?.recreate()
@@ -141,72 +123,50 @@ fun EncryptedBackupDialog(
     if (showRestorePrompt) {
         AlertDialog(
             onDismissRequest = { showRestorePrompt = false },
-            title = { Text("Granular Restore Options", style = HandwritingTypography.titleLarge) },
+            title = { Text("Choose What to Restore", style = HandwritingTypography.titleLarge) },
             text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Check the specific parts of the archive you want to restore:",
+                        text = "Select what you would like to restore from the backup archive:",
                         style = HandwritingTypography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    RestoreCheckboxRow("Capsule Entries (Notes, Media, Audio, Drawings, VPN)", restoreCapsuleEntries) { restoreCapsuleEntries = it }
-                    RestoreCheckboxRow("Capsule Settings & Themes", restoreCapsuleSettings) { restoreCapsuleSettings = it }
-                    RestoreCheckboxRow("Haven AI Settings", restoreHavenSettings) { restoreHavenSettings = it }
-                    RestoreCheckboxRow("Haven Chat History", restoreHavenHistory) { restoreHavenHistory = it }
-                    RestoreCheckboxRow("Oasis Browser Settings", restoreOasisSettings) { restoreOasisSettings = it }
-                    RestoreCheckboxRow("Oasis History, Speed Dials & Web Data", restoreOasisHistoryAndData) { restoreOasisHistoryAndData = it }
-                    RestoreCheckboxRow("Custom Wallpapers", restoreWallpapers) { restoreWallpapers = it }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            restoreMode = RestoreMode.ALL
+                            showRestorePrompt = false
+                            restoreFilePicker.launch("*/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        TextButton(onClick = {
-                            restoreCapsuleEntries = true
-                            restoreCapsuleSettings = true
-                            restoreHavenSettings = true
-                            restoreHavenHistory = true
-                            restoreOasisSettings = true
-                            restoreOasisHistoryAndData = true
-                            restoreWallpapers = true
-                        }) {
-                            Text("Select All", style = HandwritingTypography.labelLarge)
-                        }
-                        TextButton(onClick = {
-                            restoreCapsuleEntries = false
-                            restoreCapsuleSettings = false
-                            restoreHavenSettings = false
-                            restoreHavenHistory = false
-                            restoreOasisSettings = false
-                            restoreOasisHistoryAndData = false
-                            restoreWallpapers = false
-                        }) {
-                            Text("Deselect All", style = HandwritingTypography.labelLarge)
-                        }
+                        Text("Full Restore (Notes, Settings & Wallpaper)")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            restoreMode = RestoreMode.SETTINGS_ONLY
+                            showRestorePrompt = false
+                            restoreFilePicker.launch("*/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Settings Only")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            restoreMode = RestoreMode.WALLPAPER_ONLY
+                            showRestorePrompt = false
+                            restoreFilePicker.launch("*/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Wallpaper Only")
                     }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showRestorePrompt = false
-                        restoreFilePicker.launch("*/*")
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Select Backup File", color = primaryBtnContent)
-                }
-            },
-            dismissButton = {
                 TextButton(onClick = { showRestorePrompt = false }) {
                     Text("Cancel")
                 }
@@ -319,12 +279,8 @@ fun EncryptedBackupDialog(
                             }
                             scope.launch {
                                 try {
-                                    val backupDir = try {
-                                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                        File(downloadsDir, "Mu Cephei").apply { mkdirs() }
-                                    } catch (e: Exception) {
-                                        File(context.filesDir, "Mu_Cephei_Backups").apply { mkdirs() }
-                                    }
+                                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                    val backupDir = File(downloadsDir, "Mu Cephei").apply { mkdirs() }
                                     val exportFile = File(backupDir, "mcb_${System.currentTimeMillis()}.mucephi")
 
                                     val success = backupEngine.exportArchive(
@@ -332,7 +288,7 @@ fun EncryptedBackupDialog(
                                         password = if (encryptEnabled) passwordInput.toCharArray() else null,
                                         encrypt = encryptEnabled
                                     )
-                                    statusText = if (success) "Saved to ${backupDir.name}/${exportFile.name}" else "Export failed!"
+                                    statusText = if (success) "Saved to Downloads/Mu Cephei/${exportFile.name}" else "Export failed!"
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                     statusText = "Export error: ${e.localizedMessage}"
@@ -383,34 +339,6 @@ fun EncryptedBackupDialog(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun RestoreCheckboxRow(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = HandwritingTypography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
     }
 }
 

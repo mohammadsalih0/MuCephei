@@ -328,20 +328,11 @@ fun Haven(
 
     var messages by remember {
         val json = prefs.getString("chat_messages_json", null)
-        val type = object : TypeToken<List<ChatMessage?>>() {}.type
+        val type = object : TypeToken<List<ChatMessage>>() {}.type
         mutableStateOf(
             if (json != null) {
                 try {
-                    val rawList = gson.fromJson<List<ChatMessage?>>(json, type)
-                    rawList?.filterNotNull()?.map { msg ->
-                        ChatMessage(
-                            id = msg.id ?: UUID.randomUUID().toString(),
-                            isUser = msg.isUser,
-                            text = msg.text ?: "",
-                            suggestions = msg.suggestions ?: emptyList(),
-                            timestamp = if (msg.timestamp <= 0L) System.currentTimeMillis() else msg.timestamp
-                        )
-                    }?.filter { it.text.isNotBlank() && it.text != "..." }?.takeIf { it.isNotEmpty() } ?: listOf(
+                    gson.fromJson<List<ChatMessage>>(json, type) ?: listOf(
                         ChatMessage(
                             isUser = false,
                             text = "Welcome to AI Haven. Converse with your local model or configure settings via the top-right button."
@@ -397,7 +388,7 @@ fun Haven(
                 messages = messages.mapIndexed { i, m ->
                     if (i == idx) {
                         val t = m.text
-                        val stoppedText = if (t == "..." || t.isNullOrBlank()) "[Generation stopped by user]" else "${t.trimEnd()} [Stopped]"
+                        val stoppedText = if (t == "..." || t.isBlank()) "[Generation stopped by user]" else "${t.trimEnd()} [Stopped]"
                         m.copy(text = stoppedText)
                     } else {
                         m
@@ -589,30 +580,17 @@ fun Haven(
                     val fileName = ModelUtils.getFileNameFromUri(context, uri)
                     val existingAppFile = ModelUtils.checkExistingAppFile(context, fileName)
 
-                    var wasCopied = false
-                    var targetFile: File? = if (existingAppFile != null) {
+                    val targetFile: File? = if (existingAppFile != null) {
                         existingAppFile
                     } else {
                         ModelUtils.findDirectModelFile(context, uri, fileName)
                     }
 
-                    // If direct path doesn't exist or isn't readable, copy file to app files/storage
-                    if (targetFile == null || !targetFile.exists() || !targetFile.canRead()) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Copying $fileName to app files...", Toast.LENGTH_SHORT).show()
-                        }
-                        val copied = ModelUtils.copyUriToAppFiles(context, uri, fileName)
-                        if (copied != null && copied.exists() && copied.canRead()) {
-                            targetFile = copied
-                            wasCopied = true
-                        }
-                    }
-
-                    if (targetFile == null || !targetFile.exists() || !targetFile.canRead()) {
+                    if (targetFile == null || !targetFile.exists()) {
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                "Failed to access or copy $fileName. Grant All Files Access or place model in Downloads/Mu Cephei/Models.",
+                                "Direct path for $fileName not found. Grant All Files Access or place model in Downloads/Mu Cephei/Models.",
                                 Toast.LENGTH_LONG
                             ).show()
                             if (!ModelUtils.hasAllFilesAccess()) {
@@ -622,15 +600,26 @@ fun Haven(
                         return@launch
                     }
 
+                    if (!targetFile.canRead() && !targetFile.absolutePath.startsWith(context.filesDir.absolutePath)) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                "Permission denied reading ${targetFile.name}. Please grant All Files Access permission.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            ModelUtils.requestAllFilesAccess(context)
+                        }
+                        return@launch
+                    }
+
                     val modelOp = ModelOperation(context)
                     modelOp.loadModel(targetFile)
 
-                    val isAppFileLocation = targetFile.parentFile?.absolutePath == context.filesDir.absolutePath ||
-                            targetFile.parentFile?.absolutePath == ModelUtils.getAppExternalModelsDir(context)?.absolutePath
+                    val isAppFile = targetFile.parentFile?.absolutePath == context.filesDir.absolutePath
                     val info = LocalModelInfo(
                         name = fileName,
                         path = targetFile.absolutePath,
-                        isAppFile = isAppFileLocation,
+                        isAppFile = isAppFile,
                         sizeBytes = targetFile.length()
                     )
 
@@ -643,8 +632,8 @@ fun Haven(
                         availableModels = ModelUtils.getAllAvailableModels(context, prefs, gson)
                         val toastMsg = if (existingAppFile != null) {
                             "Loaded existing model from app files: $fileName"
-                        } else if (wasCopied) {
-                            "Model copied to app files & loaded: $fileName"
+                        } else if (isAppFile) {
+                            "Model copied to app files & loaded"
                         } else {
                             "Loaded directly from path without copying: $fileName"
                         }
@@ -1527,8 +1516,7 @@ fun Haven(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            items(messages, key = { it.id ?: UUID.randomUUID().toString() }) { msg ->
-                val safeText = msg.text ?: ""
+            items(messages, key = { it.id }) { msg ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
@@ -1548,13 +1536,13 @@ fun Haven(
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                                 RoundedCornerShape(16.dp)
                             )
-                            .clickable { messageToExport = safeText }
+                            .clickable { messageToExport = msg.text }
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp)
                         ) {
                             MarkdownText(
-                                text = safeText,
+                                text = msg.text,
                                 style = HandwritingTypography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1601,7 +1589,7 @@ fun Haven(
 
             // Contextual Follow-up Suggestions (Generated directly by the Model)
             val lastMessage = messages.lastOrNull()
-            if (lastMessage != null && !lastMessage.isUser && !isGenerating && !lastMessage.text.isNullOrBlank() && !lastMessage.suggestions.isNullOrEmpty()) {
+            if (lastMessage != null && !lastMessage.isUser && !isGenerating && lastMessage.text.isNotBlank() && lastMessage.suggestions.isNotEmpty()) {
                 item(key = "follow_up_suggestions_${lastMessage.id}") {
                     Column(
                         modifier = Modifier

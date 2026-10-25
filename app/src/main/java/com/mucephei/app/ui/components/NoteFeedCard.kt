@@ -116,7 +116,6 @@ fun NoteFeedCard(
     val themeColors = note.theme
     val cardBg = if (themeColors != null) PaletteEngine.hexToColor(themeColors.surfaceColorHex) else MaterialTheme.colorScheme.surface
     val accentColor = if (themeColors != null) PaletteEngine.hexToColor(themeColors.accentColorHex) else MaterialTheme.colorScheme.primary
-    val textColor = if (themeColors != null) PaletteEngine.hexToColor(themeColors.textColorHex) else MaterialTheme.colorScheme.onSurface
 
     val audioMedia = remember(note.media) { note.media.filter { it.type == MediaItemType.AUDIO } }
     val videoMedia = remember(note.media) { note.media.filter { it.type == MediaItemType.VIDEO } }
@@ -171,7 +170,7 @@ fun NoteFeedCard(
                     Text(
                         text = note.title,
                         style = HandwritingTypography.titleLarge,
-                        color = textColor,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Unspecified,
@@ -220,7 +219,7 @@ fun NoteFeedCard(
                     Text(
                         text = note.bodyText,
                         style = HandwritingTypography.bodyMedium,
-                        color = textColor.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         textAlign = TextAlign.Unspecified,
                         modifier = Modifier.fillMaxWidth()
                     )

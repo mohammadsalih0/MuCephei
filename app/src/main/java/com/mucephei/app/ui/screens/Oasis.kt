@@ -3,7 +3,7 @@ package com.mucephei.app.ui.screens
 
 import android.app.Activity
 import android.content.Context
-import java.util.UUID
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -21,12 +21,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.gson.Gson
@@ -85,17 +87,8 @@ fun Oasis(
         val savedJson = prefs.getString("open_tabs_json", null)
         val restoredTabs: List<BrowserTab>? = if (!savedJson.isNullOrBlank()) {
             try {
-                val type = object : TypeToken<List<BrowserTab?>>() {}.type
-                val rawTabs = gson.fromJson<List<BrowserTab?>>(savedJson, type)
-                rawTabs?.filterNotNull()?.map { tab ->
-                    val resolvedUrl = if (tab.url == "about:blank") "" else (tab.url ?: "")
-                    BrowserTab(
-                        id = tab.id ?: UUID.randomUUID().toString(),
-                        url = resolvedUrl,
-                        title = if (resolvedUrl.isBlank()) "Speed Dial" else (tab.title ?: "Web"),
-                        scrollY = tab.scrollY
-                    )
-                }
+                val type = object : TypeToken<List<BrowserTab>>() {}.type
+                gson.fromJson<List<BrowserTab>>(savedJson, type)
             } catch (_: Exception) {
                 null
             }
@@ -135,44 +128,22 @@ fun Oasis(
     // Persistent History & Bookmarks via Gson
     var historyList by remember {
         val json = prefs.getString("history_json", null)
-        val type = object : TypeToken<List<HistoryItem?>>() {}.type
-        val restored = if (!json.isNullOrBlank()) {
-            try {
-                gson.fromJson<List<HistoryItem?>>(json, type)?.filterNotNull()?.map { h ->
-                    HistoryItem(url = h.url ?: "", title = h.title ?: "", timestamp = h.timestamp)
-                }
-            } catch (_: Exception) { null }
-        } else null
-        mutableStateOf(restored ?: emptyList())
+        val type = object : TypeToken<List<HistoryItem>>() {}.type
+        mutableStateOf(if (json != null) gson.fromJson<List<HistoryItem>>(json, type) else emptyList())
     }
 
     var bookmarksList by remember {
         val json = prefs.getString("bookmarks_json", null)
-        val type = object : TypeToken<List<BookmarkItem?>>() {}.type
-        val restored = if (!json.isNullOrBlank()) {
-            try {
-                gson.fromJson<List<BookmarkItem?>>(json, type)?.filterNotNull()?.map { b ->
-                    BookmarkItem(url = b.url ?: "", title = b.title ?: "")
-                }
-            } catch (_: Exception) { null }
-        } else null
-        mutableStateOf(restored ?: emptyList())
+        val type = object : TypeToken<List<BookmarkItem>>() {}.type
+        mutableStateOf(if (json != null) gson.fromJson<List<BookmarkItem>>(json, type) else emptyList())
     }
 
     var speedDialList by remember {
         val json = prefs.getString("speed_dial_json", null)
-        val type = object : TypeToken<List<SpeedDialItem?>>() {}.type
+        val type = object : TypeToken<List<SpeedDialItem>>() {}.type
         val restored: List<SpeedDialItem>? = if (!json.isNullOrBlank()) {
             try {
-                val rawSpeed = gson.fromJson<List<SpeedDialItem?>>(json, type)
-                rawSpeed?.filterNotNull()?.filter { !it.url.isBlank() && it.url != "about:blank" }?.map { item ->
-                    SpeedDialItem(
-                        title = item.title ?: "",
-                        url = item.url ?: "",
-                        subtitle = item.subtitle ?: "",
-                        faviconUrl = item.faviconUrl
-                    )
-                }?.takeIf { it.isNotEmpty() }
+                gson.fromJson<List<SpeedDialItem>>(json, type)
             } catch (_: Exception) {
                 null
             }
@@ -231,8 +202,11 @@ fun Oasis(
     var dismissedText by remember { mutableStateOf("") }
     var dismissedImageUrl by remember { mutableStateOf("") }
 
-    // WebView cache map per tab ID
+    // WebView & SwipeRefreshLayout cache map per tab ID
     val webViewsMap = remember { mutableMapOf<String, WebView>() }
+    val swipeRefreshLayoutsMap: MutableMap<String, androidx.swiperefreshlayout.widget.SwipeRefreshLayout> = remember { mutableMapOf() }
+    val primaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+    val surfaceColorArgb = MaterialTheme.colorScheme.surface.toArgb()
 
     fun saveTabsToPrefs() {
         webViewsMap.forEach { (tabId, wv) ->
@@ -349,13 +323,74 @@ fun Oasis(
                     }
                 }
 
+                val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                    override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                        if (e1 != null) {
+                            val dx = e2.x - e1.x
+                            val dy = e2.y - e1.y
+                            if (kotlin.math.abs(dx) > kotlin.math.abs(dy) && kotlin.math.abs(dx) > 100 && kotlin.math.abs(velocityX) > 200) {
+                                if (dx > 0) {
+                                    // Swipe right -> go back
+                                    if (canGoBack()) {
+                                        goBack()
+                                        return true
+                                    }
+                                } else {
+                                    // Swipe left -> go forward
+                                    if (canGoForward()) {
+                                        goForward()
+                                        return true
+                                    }
+                                }
+                            }
+                        }
+                        return false
+                    }
+                })
+
+                var startTouchX = 0f
+                var startTouchY = 0f
+                var isHorizontalSwipe = false
+
                 setOnTouchListener { v, event ->
+                    gestureDetector.onTouchEvent(event)
+                    val wv = v as WebView
                     when (event.action) {
-                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        MotionEvent.ACTION_DOWN -> {
+                            startTouchX = event.x
+                            startTouchY = event.y
+                            isHorizontalSwipe = false
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = event.x - startTouchX
+                            val dy = event.y - startTouchY
+                            if (!canScrollVertically(-1) && dy > 0 && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                                v.parent?.requestDisallowInterceptTouchEvent(false)
+                            } else if (kotlin.math.abs(dx) > kotlin.math.abs(dy) && kotlin.math.abs(dx) > 30) {
+                                isHorizontalSwipe = true
+                                v.parent?.requestDisallowInterceptTouchEvent(true)
+                            } else {
+                                v.parent?.requestDisallowInterceptTouchEvent(true)
+                            }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             v.parent?.requestDisallowInterceptTouchEvent(false)
+                            val dx = event.x - startTouchX
+                            val dy = event.y - startTouchY
+                            val threshold = 150f
+                            if (isHorizontalSwipe && kotlin.math.abs(dx) > threshold && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                                if (dx > 0) {
+                                    // Swipe right -> go back
+                                    if (wv.canGoBack()) {
+                                        wv.goBack()
+                                    }
+                                } else {
+                                    // Swipe left -> go forward
+                                    if (wv.canGoForward()) {
+                                        wv.goForward()
+                                    }
+                                }
+                            }
                             if (!toolbarDisabledForever && toolbarAutoPopup) {
                                 evaluateJavascript(extractTextJs) { result: String? ->
                                     val clean = parseJsString(gson, result).trim()
@@ -437,6 +472,7 @@ fun Oasis(
                             historyList = listOf(HistoryItem(it, title)) + historyList
                         }
                         isLoading = false
+                        swipeRefreshLayoutsMap[tab.id]?.isRefreshing = false
                         canGoBack = canGoBack()
                         canGoForward = canGoForward()
                         saveTabsToPrefs()
@@ -449,6 +485,9 @@ fun Oasis(
                         if (tab.id == activeTabId) {
                             progress = newProgress / 100f
                             isLoading = newProgress < 100
+                        }
+                        if (newProgress >= 100) {
+                            swipeRefreshLayoutsMap[tab.id]?.isRefreshing = false
                         }
                     }
 
@@ -572,6 +611,31 @@ fun Oasis(
         }
     }
 
+    fun getOrCreateSwipeRefreshLayout(tab: BrowserTab): androidx.swiperefreshlayout.widget.SwipeRefreshLayout {
+        return swipeRefreshLayoutsMap.getOrPut(tab.id) {
+            val wv = getOrCreateWebView(tab)
+            androidx.swiperefreshlayout.widget.SwipeRefreshLayout(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setColorSchemeColors(primaryColorArgb)
+                setProgressBackgroundColorSchemeColor(surfaceColorArgb)
+                setOnRefreshListener {
+                    wv.reload()
+                }
+                (wv.parent as? ViewGroup)?.removeView(wv)
+                addView(
+                    wv,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+            }
+        }
+    }
+
     fun navigateTo(input: String) {
         val query = input.trim()
         val url = if (isUrlInput(query)) {
@@ -677,6 +741,7 @@ fun Oasis(
                 showTabsDialog = false
             },
             onCloseTab = { tab ->
+                swipeRefreshLayoutsMap.remove(tab.id)?.removeAllViews()
                 webViewsMap.remove(tab.id)?.destroy()
                 val newTabs = tabsList.filter { it.id != tab.id }
                 tabsList = newTabs
@@ -699,6 +764,7 @@ fun Oasis(
                     prefs.edit().remove("history_json").apply()
                 }
                 if (clearCookiesCache) {
+                    swipeRefreshLayoutsMap.values.forEach { it.isRefreshing = false }
                     webViewsMap.values.forEach { it.clearCache(true) }
                     CookieManager.getInstance().removeAllCookies(null)
                     WebStorage.getInstance().deleteAllData()
@@ -910,11 +976,11 @@ fun Oasis(
                     )
                 } else {
                     key(activeTabId) {
-                        val wv = getOrCreateWebView(activeTab)
+                        val srl = getOrCreateSwipeRefreshLayout(activeTab)
                         AndroidView(
                             factory = {
-                                (wv.parent as? ViewGroup)?.removeView(wv)
-                                wv
+                                (srl.parent as? ViewGroup)?.removeView(srl)
+                                srl
                             },
                             modifier = Modifier.fillMaxSize()
                         ) { _ -> }
