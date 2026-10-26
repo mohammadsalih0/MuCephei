@@ -38,11 +38,20 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+      - name: Decode Keystore
+        if: env.SIGNING_KEY != ''
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          echo "$SIGNING_KEY" | base64 -d > release.keystore
 
-      - name: Build Release App Bundle (AAB)
-        run: ./gradlew bundleRelease
+      - name: Build Release APK
+        env:
+          SIGNING_STORE_FILE: ${{ github.workspace }}/release.keystore
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
 
       - name: Extract Tag & Version
         id: vars
@@ -54,19 +63,15 @@ jobs:
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Create Zip Package for GitHub Packages
+      - name: Prepare APK Output
         run: |
           mkdir -p package_dist
-          cp app/build/outputs/apk/release/*.apk package_dist/ 2>/dev/null || true
-          cp app/build/outputs/bundle/release/*.aab package_dist/ 2>/dev/null || true
-          cd package_dist
-          zip -r ../mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}.zip .
-          cd ..
+          cp app/build/outputs/apk/release/*.apk package_dist/MuCephei-${{ steps.vars.outputs.TAG_NAME }}.apk 2>/dev/null || true
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}
+          name: mucephei-release-apk-${{ steps.vars.outputs.TAG_NAME }}
           path: package_dist/
 
       - name: Publish GitHub Release Package
@@ -75,8 +80,6 @@ jobs:
         with:
           files: |
             package_dist/*.apk
-            package_dist/*.aab
-            mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}.zip
           generate_release_notes: true
           name: "Release ${{ steps.vars.outputs.TAG_NAME }}"
         env:

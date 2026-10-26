@@ -54,6 +54,10 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SystemUpdate
+import com.mucephei.app.update.UpdateInfo
+import com.mucephei.app.update.UpdateManager
+import com.mucephei.app.ui.dialogs.UpdateAvailableDialog
 import com.mucephei.app.sync.P2pConnectionStatus
 import com.mucephei.app.ui.components.LiveCollaborativeCanvasDialog
 import androidx.compose.material3.DropdownMenu
@@ -166,6 +170,17 @@ fun Capsule(
     var showAboutDialog by remember { mutableStateOf(false) }
     var isQuickVoiceRecording by remember { mutableStateOf(false) }
     var stopVoiceRecordingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        UpdateManager.cleanupOldApks(context)
+        val info = UpdateManager.checkForUpdates()
+        if (info != null) {
+            updateInfo = info
+        }
+    }
 
     // Camera & Video capture state & permission launchers
     var cameraCaptureUri by remember { mutableStateOf<Uri?>(null) }
@@ -353,6 +368,13 @@ fun Capsule(
         )
     }
 
+    if (showUpdateDialog && updateInfo != null) {
+        UpdateAvailableDialog(
+            updateInfo = updateInfo!!,
+            onDismiss = { showUpdateDialog = false }
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize().preferredHighestRefreshRate(),
         topBar = {
@@ -537,6 +559,17 @@ fun Capsule(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(end = 12.dp)
                         ) {
+                            // Update Available Button (Appears only when an update is available)
+                            if (updateInfo != null) {
+                                ThemedActionButton(
+                                    onClick = { showUpdateDialog = true },
+                                    icon = Icons.Default.SystemUpdate,
+                                    contentDescription = "Update Available",
+                                    tint = Color(0xFFE76F51),
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+
                             // Live Collaborative Canvas Button (Appears only when P2P session is established)
                             if (syncState.status == P2pConnectionStatus.CONNECTED_COOP_ROOM) {
                                 ThemedActionButton(

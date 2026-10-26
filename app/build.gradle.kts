@@ -27,17 +27,26 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
-    val releaseStoreFilePath = localProperties.getProperty("signing.store.file")
+    val envStoreFile = System.getenv("SIGNING_STORE_FILE")
+    val envStorePassword = System.getenv("KEY_STORE_PASSWORD")
+    val envKeyAlias = System.getenv("ALIAS")
+    val envKeyPassword = System.getenv("KEY_PASSWORD")
+
+    val releaseStoreFilePath = envStoreFile ?: localProperties.getProperty("signing.store.file")
     val releaseStoreFile = releaseStoreFilePath?.let { file(it) }
-    val hasReleaseSigning = releaseStoreFile?.exists() == true
+    val releaseStorePassword = envStorePassword ?: localProperties.getProperty("signing.store.password")
+    val releaseKeyAlias = envKeyAlias ?: localProperties.getProperty("signing.key.alias")
+    val releaseKeyPassword = envKeyPassword ?: localProperties.getProperty("signing.key.password")
+
+    val hasReleaseSigning = releaseStoreFile?.exists() == true && !releaseStorePassword.isNullOrEmpty()
 
     if (hasReleaseSigning) {
         signingConfigs {
             create("release") {
                 storeFile = releaseStoreFile
-                storePassword = localProperties.getProperty("signing.store.password")
-                keyAlias = localProperties.getProperty("signing.key.alias")
-                keyPassword = localProperties.getProperty("signing.key.password")
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
