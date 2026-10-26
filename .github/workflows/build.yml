@@ -1,0 +1,83 @@
+name: Build and Publish Android Release Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '*'
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-publish:
+    name: Build & Publish Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew test
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Build Release App Bundle (AAB)
+        run: ./gradlew bundleRelease
+
+      - name: Extract Tag & Version
+        id: vars
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [ "$TAG_NAME" = "$GITHUB_REF" ]; then
+            TAG_NAME="v2.0-${GITHUB_SHA::7}"
+          fi
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create Zip Package for GitHub Packages
+        run: |
+          mkdir -p package_dist
+          cp app/build/outputs/apk/release/*.apk package_dist/ 2>/dev/null || true
+          cp app/build/outputs/bundle/release/*.aab package_dist/ 2>/dev/null || true
+          cd package_dist
+          zip -r ../mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}.zip .
+          cd ..
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}
+          path: package_dist/
+
+      - name: Publish GitHub Release Package
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            package_dist/*.apk
+            package_dist/*.aab
+            mucephei-android-package-${{ steps.vars.outputs.TAG_NAME }}.zip
+          generate_release_notes: true
+          name: "Release ${{ steps.vars.outputs.TAG_NAME }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

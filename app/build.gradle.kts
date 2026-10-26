@@ -27,12 +27,18 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = localProperties.getProperty("signing.store.file")?.let { file(it) }
-            storePassword = localProperties.getProperty("signing.store.password")
-            keyAlias = localProperties.getProperty("signing.key.alias")
-            keyPassword = localProperties.getProperty("signing.key.password")
+    val releaseStoreFilePath = localProperties.getProperty("signing.store.file")
+    val releaseStoreFile = releaseStoreFilePath?.let { file(it) }
+    val hasReleaseSigning = releaseStoreFile?.exists() == true
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = localProperties.getProperty("signing.store.password")
+                keyAlias = localProperties.getProperty("signing.key.alias")
+                keyPassword = localProperties.getProperty("signing.key.password")
+            }
         }
     }
 
@@ -41,7 +47,11 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
