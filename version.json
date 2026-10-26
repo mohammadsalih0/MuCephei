@@ -1,8 +1,8 @@
 {
-  "versionCode": 2,
+  "versionCode": 3,
   "versionName": "2.1.0",
-  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.1.0/app-release.apk",
+  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.1.0/MuCephei-v2.1.0.apk",
   "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v2.1.0",
   "sha256": "",
-  "changelog": "- Added self-update feature with background check\n- Top bar update icon & changelog dialog\n- SHA-256 APK integrity verification\n- Browser fallback download option"
+  "changelog": "- In-App Updates: Background check on startup with top-bar update notification & changelog dialog\n- Pull-to-Refresh in Oasis: Smooth page reloading matching Material 3 theme colors\n- Edge Swipe Navigation: Swipe right to go back, swipe left to go forward in Oasis history\n- Performance Boost: Lazy WebView initialization for lightning-fast app startup\n- Polished UI: Aligned Oasis bottom bar buttons and address bar"
 }

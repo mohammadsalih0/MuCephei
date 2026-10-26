@@ -74,13 +74,21 @@ jobs:
           name: mucephei-release-apk-${{ steps.vars.outputs.TAG_NAME }}
           path: package_dist/
 
+      - name: Extract Changelog from version.json
+        id: changelog
+        run: |
+          CHANGELOG=$(jq -r '.changelog' version.json)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Publish GitHub Release Package
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             package_dist/*.apk
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.content }}
           name: "Release ${{ steps.vars.outputs.TAG_NAME }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
