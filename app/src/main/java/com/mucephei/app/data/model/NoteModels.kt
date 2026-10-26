@@ -11,7 +11,8 @@ data class MediaMetadata(
     val thumbnailUri: String? = null,
     val fileName: String? = null,
     val fileSize: Long? = null,
-    val mimeType: String? = null
+    val mimeType: String? = null,
+    val transcript: String? = null,
 )
 
 data class MediaItem(

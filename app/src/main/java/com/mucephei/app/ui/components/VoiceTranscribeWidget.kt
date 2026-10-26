@@ -14,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +27,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,11 +64,27 @@ import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+data class TranscribeLanguage(
+    val code: String,
+    val label: String,
+)
+
+val availableLanguages = listOf(
+    TranscribeLanguage("auto", "🌐 Auto"),
+    TranscribeLanguage("ar", "🇸🇦 العربية"),
+    TranscribeLanguage("en-US", "🇺🇸 English"),
+    TranscribeLanguage("es-ES", "🇪🇸 Español"),
+    TranscribeLanguage("fr-FR", "🇫🇷 Français"),
+    TranscribeLanguage("de-DE", "🇩🇪 Deutsch"),
+    TranscribeLanguage("zh-CN", "🇨🇳 中文"),
+    TranscribeLanguage("hi-IN", "🇮🇳 हिन्दी"),
+)
+
 /**
  * Interactive Voice Transcribe Widget:
- * - Uses SpeechRecognizer exclusively for live real-time speech-to-text transcription.
- * - Does NOT run MediaRecorder concurrently to prevent Android microphone locking/conflict.
- * - Streams spoken words in real-time into the note body.
+ * - Uses SpeechRecognizer for real-time live speech-to-text transcription.
+ * - Enforces explicit language preference via EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE
+ *   so transcription matches the chosen language regardless of phone keyboard settings.
  */
 @Composable
 fun VoiceTranscribeWidget(
@@ -80,8 +100,12 @@ fun VoiceTranscribeWidget(
     var secondsElapsed by remember { mutableIntStateOf(0) }
     var statusText by remember { mutableStateOf(value = "Listening for speech...") }
 
+    var selectedLanguage by remember { mutableStateOf(availableLanguages[0]) }
+    var isLanguageMenuExpanded by remember { mutableStateOf(value = false) }
+
     var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
     var currentUtteranceText by remember { mutableStateOf(value = "") }
+    var totalTranscribedText by remember { mutableStateOf(value = "") }
 
     val primaryColor = MaterialTheme.colorScheme.primary
 
@@ -113,33 +137,42 @@ fun VoiceTranscribeWidget(
         }
     }
 
-    fun createRecognizerIntent(): Intent {
+    fun createRecognizerIntent(lang: TranscribeLanguage): Intent {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            val langTag = if (lang.code == "auto") Locale.getDefault().toLanguageTag() else lang.code
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, langTag)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langTag)
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, true)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            if (lang.code == "auto") {
+                putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", true)
+            }
         }
     }
 
-    fun safeStartListening(recognizer: SpeechRecognizer?) {
+    fun safeStartListening(recognizer: SpeechRecognizer?, lang: TranscribeLanguage) {
         if ((!isRecording) || (recognizer == null)) return
         try {
-            recognizer.startListening(createRecognizerIntent())
+            recognizer.startListening(createRecognizerIntent(lang))
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    // Initialize SpeechRecognizer with exclusive microphone access
-    LaunchedEffect(Unit) {
+    // Initialize SpeechRecognizer
+    LaunchedEffect(selectedLanguage) {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.destroy()
+
             val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
             speechRecognizer = recognizer
 
             val listener = object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    if (isRecording) statusText = "Listening for speech..."
+                    if (isRecording) statusText = "Listening (${selectedLanguage.label})..."
                 }
 
                 override fun onBeginningOfSpeech() {
@@ -160,7 +193,7 @@ fun VoiceTranscribeWidget(
                     coroutineScope.launch {
                         delay(300.milliseconds)
                         if (isRecording) {
-                            safeStartListening(speechRecognizer)
+                            safeStartListening(speechRecognizer, selectedLanguage)
                         }
                     }
                 }
@@ -176,6 +209,7 @@ fun VoiceTranscribeWidget(
                                 " $fullText"
                             }
                             if (diff.isNotBlank()) {
+                                totalTranscribedText += diff
                                 onTextSegment(diff)
                             }
                         }
@@ -185,7 +219,7 @@ fun VoiceTranscribeWidget(
                         coroutineScope.launch {
                             delay(200.milliseconds)
                             if (isRecording) {
-                                safeStartListening(speechRecognizer)
+                                safeStartListening(speechRecognizer, selectedLanguage)
                             }
                         }
                     }
@@ -203,6 +237,7 @@ fun VoiceTranscribeWidget(
                             }
                             if (diff.isNotBlank()) {
                                 currentUtteranceText = fullText
+                                totalTranscribedText += diff
                                 onTextSegment(diff)
                             }
                         }
@@ -213,7 +248,7 @@ fun VoiceTranscribeWidget(
             }
             recognizer.setRecognitionListener(listener)
 
-            safeStartListening(recognizer)
+            safeStartListening(recognizer, selectedLanguage)
         } else {
             statusText = "Speech engine unavailable"
         }
@@ -251,6 +286,7 @@ fun VoiceTranscribeWidget(
                 durationSec = secondsElapsed.toLong().coerceAtLeast(1L),
                 fileName = "transcribe_$timestamp.m4a",
                 mimeType = "audio/mp4",
+                transcript = totalTranscribedText.ifBlank { null },
             ),
         )
         onTranscriptionComplete(dummyItem)
@@ -286,29 +322,71 @@ fun VoiceTranscribeWidget(
                 IconButton(onClick = { cancelRecording() }, modifier = Modifier.size(32.dp)) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.error)
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(2.dp))
                 Box(
                     modifier = Modifier
-                        .size(14.dp)
+                        .size(12.dp)
                         .clip(CircleShape)
                         .background(primaryColor),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Column {
                     Text(
                         text = statusText,
                         style = HandwritingTypography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Text(
-                        text = formatTime(secondsElapsed),
-                        style = HandwritingTypography.labelMedium,
-                        color = primaryColor,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formatTime(secondsElapsed),
+                            style = HandwritingTypography.labelMedium,
+                            color = primaryColor,
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Language Selector Chip
+                        Box {
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(primaryColor.copy(alpha = 0.15f))
+                                    .clickable { isLanguageMenuExpanded = true }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = selectedLanguage.label,
+                                    style = HandwritingTypography.labelSmall,
+                                    color = primaryColor,
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Language",
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = isLanguageMenuExpanded,
+                                onDismissRequest = { isLanguageMenuExpanded = false },
+                            ) {
+                                availableLanguages.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang.label, style = HandwritingTypography.labelMedium) },
+                                        onClick = {
+                                            selectedLanguage = lang
+                                            isLanguageMenuExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            Canvas(modifier = Modifier.size(width = 40.dp, height = 24.dp)) {
+            Canvas(modifier = Modifier.size(width = 36.dp, height = 24.dp)) {
                 val barWidth = 3.dp.toPx()
                 val gap = 4.dp.toPx()
                 val maxH = size.height

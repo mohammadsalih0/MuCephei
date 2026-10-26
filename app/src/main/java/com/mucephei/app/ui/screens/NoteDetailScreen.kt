@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import com.mucephei.app.ui.components.AttachedAudioTranscribeDialog
 import com.mucephei.app.ui.components.ThemedActionButton
 import com.mucephei.app.ui.components.ThemedActionTextButton
 import com.mucephei.app.ui.components.VoiceTranscribeWidget
@@ -155,6 +156,7 @@ fun NoteDetailScreen(
     var activeLightboxMedia by remember { mutableStateOf<MediaItem?>(null) }
     var activeVideoMedia by remember { mutableStateOf<MediaItem?>(null) }
     var selectedMediaForOptions by remember { mutableStateOf<MediaItem?>(null) }
+    var transcribingAudioMedia by remember { mutableStateOf<MediaItem?>(null) }
 
     val drawingPaths = remember { mutableStateListOf<Pair<Path, Color>>() }
     var currentPath by remember { mutableStateOf<Path?>(null) }
@@ -402,7 +404,22 @@ fun NoteDetailScreen(
                 }
                 currentNote = currentNote.copy(media = updatedMedia)
                 selectedMediaForOptions = null
-            }
+            },
+            onTranscribe = {
+                transcribingAudioMedia = media
+                selectedMediaForOptions = null
+            },
+        )
+    }
+
+    transcribingAudioMedia?.let { media ->
+        AttachedAudioTranscribeDialog(
+            mediaItem = media,
+            onTextSegment = { segment ->
+                val spacePrefix = if (currentNote.bodyText.isNotEmpty() && (!currentNote.bodyText.endsWith(" ")) && (!segment.startsWith(" "))) " " else ""
+                currentNote = currentNote.copy(bodyText = currentNote.bodyText + spacePrefix + segment)
+            },
+            onDismiss = { transcribingAudioMedia = null },
         )
     }
 

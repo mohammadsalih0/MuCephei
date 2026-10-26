@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Wallpaper
@@ -56,7 +57,7 @@ import java.io.FileOutputStream
 
 /**
  * Media Item Options Dialog:
- * Shows Replace, Rename, Save/Download, Set as Wallpaper, Share, and Delete options for attached media items.
+ * Shows Replace, Rename, Save/Download, Transcribe, Set as Wallpaper, Share, and Delete options for attached media items.
  */
 @Composable
 fun MediaItemOptionsSheet(
@@ -64,7 +65,8 @@ fun MediaItemOptionsSheet(
     onReplace: () -> Unit,
     onDelete: () -> Unit,
     onRename: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onTranscribe: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var isRenaming by remember { mutableStateOf(false) }
@@ -182,6 +184,19 @@ fun MediaItemOptionsSheet(
                         onDismiss()
                     }
                 )
+
+                // Transcribe Audio Option for attached audio recordings
+                if ((mediaItem.type == MediaItemType.AUDIO) || (mediaItem.metadata.mimeType?.startsWith("audio/") == true)) {
+                    OptionRow(
+                        icon = Icons.Default.RecordVoiceOver,
+                        label = "Transcribe to Text",
+                        description = "Extract text from audio and append to note body",
+                        onClick = {
+                            onTranscribe?.invoke()
+                            onDismiss()
+                        },
+                    )
+                }
 
                 // Set as Wallpaper option for photos & drawings (robust copying to wallpapers dir)
                 if (mediaItem.type == MediaItemType.PHOTO || mediaItem.type == MediaItemType.DRAWING) {
