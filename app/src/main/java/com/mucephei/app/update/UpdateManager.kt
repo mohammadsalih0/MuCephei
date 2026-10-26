@@ -20,6 +20,7 @@ object UpdateManager {
     private const val VERSION_JSON_URL = "https://raw.githubusercontent.com/mohammadsalih0/MuCephei/main/version.json"
     private const val UPDATES_DIR = "updates"
 
+
     fun cleanupOldApks(context: Context) {
         try {
             val updatesDir = File(context.cacheDir, UPDATES_DIR)
@@ -46,7 +47,8 @@ object UpdateManager {
                 packageInfo.versionCode
             }
 
-            val url = URL(VERSION_JSON_URL)
+            val requestUrl = "$VERSION_JSON_URL?t=${System.currentTimeMillis()}"
+            val url = URL(requestUrl)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10000
