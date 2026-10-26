@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -24,7 +27,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mucephei.app.theme.HandwritingTypography
-import com.mucephei.app.ui.components.ThemedActionButton
 import kotlinx.coroutines.launch
 
 @Composable
@@ -156,6 +158,7 @@ fun OasisBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
                             onHorizontalDrag = { change, dragAmount ->
@@ -181,21 +184,27 @@ fun OasisBottomBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 /* Back Button
-                ThemedActionButton(
+                OasisActionButton(
                     onClick = onBackClick,
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = if (canGoBack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
                 ) */
 
                 /* Forward Button
-                ThemedActionButton(
+                OasisActionButton(
                     onClick = onForwardClick,
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Forward",
                     tint = if (canGoForward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
                 )*/
 
                 // Address Input Field
@@ -259,31 +268,40 @@ fun OasisBottomBar(
                 )
 
                 // New tab button
-                ThemedActionButton(
+                OasisActionButton(
                     onClick = onNewTab,
                     icon = Icons.Default.Add,
                     contentDescription = "New Tab",
                     tint = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
                 )
 
                 // Tabs Switcher Button
-                ThemedActionButton(
+                OasisActionButton(
                     onClick = onTabsClick,
                     icon = Icons.Default.Tab,
                     contentDescription = "Tabs ($tabsCount)",
                     tint = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
                 )
 
                 // Menu / More Options Dropdown
-                Box {
-                    ThemedActionButton(
+                Box(modifier = Modifier.fillMaxHeight()) {
+                    OasisActionButton(
                         onClick = { showMenu = true },
                         icon = Icons.Default.MoreVert,
                         contentDescription = "Menu",
                         tint = MaterialTheme.colorScheme.primary,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(1f)
                     )
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
@@ -338,6 +356,35 @@ fun OasisBottomBar(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun OasisActionButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        modifier = modifier
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
