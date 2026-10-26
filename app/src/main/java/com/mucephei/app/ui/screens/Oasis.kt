@@ -233,18 +233,8 @@ fun Oasis(
         }
     }
 
-    LaunchedEffect(initialWebUrl) {
-        if (!initialWebUrl.isNullOrBlank()) {
-            val existing = tabsList.find { it.url == initialWebUrl }
-            if (existing != null) {
-                activeTabId = existing.id
-            } else {
-                val newTab = BrowserTab(url = initialWebUrl, title = "Web")
-                tabsList = tabsList + newTab
-                activeTabId = newTab.id
-            }
-        }
-    }
+    // REMOVED: LaunchedEffect to load initialWebUrl or handle tab URL navigation immediately.
+    // WebViews are now only created on-demand inside the box/navigation UI flow.
 
     LaunchedEffect(activeTabId) {
         val tab = tabsList.find { it.id == activeTabId } ?: return@LaunchedEffect
@@ -665,13 +655,13 @@ fun Oasis(
 
     LaunchedEffect(initialWebUrl) {
         initialWebUrl?.let { url ->
-            if (url != activeTab.url) {
+            // Only update if no active WebView exists, preserving state for lazy loading
+            val wv = webViewsMap[activeTabId]
+            if (wv == null && url != activeTab.url) {
                 activeTab.url = url
                 activeTab.title = "Web"
                 currentUrl = url
                 addressInputState = TextFieldValue(text = url, selection = TextRange.Zero)
-                val wv = getOrCreateWebView(activeTab)
-                wv.loadUrl(url)
             }
         }
     }
