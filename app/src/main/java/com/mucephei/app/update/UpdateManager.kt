@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.google.gson.Gson
-import com.mucephei.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -37,8 +36,16 @@ object UpdateManager {
         }
     }
 
-    suspend fun checkForUpdates(): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdates(context: Context): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val currentVersionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode
+            }
+
             val url = URL(VERSION_JSON_URL)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -51,7 +58,7 @@ object UpdateManager {
                 val jsonString = connection.inputStream.bufferedReader().use { it.readText() }
                 val gson = Gson()
                 val updateInfo = gson.fromJson(jsonString, UpdateInfo::class.java)
-                if (updateInfo != null && updateInfo.versionCode > BuildConfig.VERSION_CODE) {
+                if ((updateInfo != null) && (updateInfo.versionCode > currentVersionCode)) {
                     return@withContext updateInfo
                 }
             }
@@ -64,7 +71,7 @@ object UpdateManager {
     suspend fun downloadAndVerifyApk(
         context: Context,
         updateInfo: UpdateInfo,
-        onStateChanged: (DownloadState) -> Unit
+        onStateChanged: (DownloadState) -> Unit,
     ): File? = withContext(Dispatchers.IO) {
         try {
             onStateChanged(DownloadState.Downloading(0f))

@@ -176,7 +176,7 @@ fun Capsule(
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         UpdateManager.cleanupOldApks(context)
-        val info = UpdateManager.checkForUpdates()
+        val info = UpdateManager.checkForUpdates(context)
         if (info != null) {
             updateInfo = info
         }
