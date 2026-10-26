@@ -20,6 +20,7 @@ import com.mucephei.app.data.model.NoteTheme
 import com.mucephei.app.data.model.ThemePreset
 import com.mucephei.app.data.repository.NoteRepository
 import com.mucephei.app.sync.P2pSyncEngine
+import com.mucephei.app.util.preferredHighestRefreshRate
 import kotlinx.coroutines.launch
 
 /**
@@ -115,7 +116,7 @@ fun MainPagerContainer(
             state = pagerState,
             userScrollEnabled = false,
             beyondViewportPageCount = 2,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().preferredHighestRefreshRate()
         ) { page ->
             when (page) {
                 0 -> {

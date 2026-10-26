@@ -3,6 +3,7 @@ package com.mucephei.app.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import com.mucephei.app.util.preferredHighestRefreshRate
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -385,6 +386,7 @@ fun NoteDetailScreen(
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize().preferredHighestRefreshRate(),
         topBar = {
             TopAppBar(
                 title = {

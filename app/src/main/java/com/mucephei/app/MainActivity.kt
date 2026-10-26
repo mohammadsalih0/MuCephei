@@ -43,6 +43,9 @@ import com.google.gson.Gson
 import com.mucephei.app.data.model.MediaItem
 import com.mucephei.app.data.model.MediaItemType
 import com.mucephei.app.data.model.MediaMetadata
+import com.mucephei.app.util.LocalHighestRefreshRate
+import com.mucephei.app.util.preferredHighestRefreshRate
+import com.mucephei.app.util.rememberHighestRefreshRate
 import com.mucephei.app.data.model.Note
 import com.mucephei.app.data.model.NoteTheme
 import com.mucephei.app.data.model.ThemePreset
@@ -75,14 +78,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request maximum refresh rate (up to 144Hz) asynchronously after view attachment for buttery smooth animations without blocking onCreate
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        // Request absolute highest refresh rate available asynchronously after view attachment for buttery smooth animations across all frame rates (90Hz, 120Hz, 144Hz, etc.)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             window.decorView.post {
                 window.decorView.display?.let { display ->
                     val highestMode = display.supportedModes.maxByOrNull { it.refreshRate }
-                    if (highestMode != null && highestMode.refreshRate >= 110f) {
+                    if (highestMode != null && highestMode.refreshRate > 60f) {
                         window.attributes = window.attributes.apply {
                             preferredDisplayModeId = highestMode.modeId
+                            preferredRefreshRate = highestMode.refreshRate
                         }
                     }
                 }
@@ -95,6 +99,7 @@ class MainActivity : ComponentActivity() {
         val app = application as MuCepheiApplication
 
         setContent {
+            val highestRefreshRate = rememberHighestRefreshRate()
             val isSystemDark = isSystemInDarkTheme()
             val currentHour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
             val isNightTime = remember(currentHour) { currentHour >= 19 || currentHour < 7 }
@@ -171,13 +176,14 @@ class MainActivity : ComponentActivity() {
 
             CompositionLocalProvider(
                 LocalDensity provides customDensity,
-                LocalLayoutDirection provides appLayoutDirection
+                LocalLayoutDirection provides appLayoutDirection,
+                LocalHighestRefreshRate provides highestRefreshRate
             ) {
                 MaterialTheme(
                     colorScheme = colorScheme,
                     typography = HandwritingTypography
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize().preferredHighestRefreshRate()) {
                         // 1. Base theme background color fill (skipped if custom wallpaper is active to eliminate GPU overdraw)
                         if (wallpaperPath == null) {
                             Surface(
@@ -309,6 +315,15 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try {
+            reportFullyDrawn()
+        } catch (_: Throwable) {
+            // Ignore
+        }
     }
 
     private fun handleIncomingIntent(intent: Intent?) {

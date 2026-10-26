@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import com.mucephei.app.util.preferredHighestRefreshRate
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -928,7 +929,7 @@ fun Oasis(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize().preferredHighestRefreshRate()
     ) {
         Column(
             modifier = Modifier
@@ -1141,6 +1142,12 @@ fun Oasis(
                 },
                 onNavigate = { navigateTo(it) },
                 onTabsClick = { showTabsDialog = true },
+                onNewTab = {
+                    val newTab = BrowserTab(title = "New Tab", url = "")
+                    tabsList = tabsList + newTab
+                    activeTabId = newTab.id
+                    // No Haven navigation here
+                },
                 onSpeedDialHomeClick = {
                     activeTab.url = ""
                     activeTab.title = "Speed Dial"

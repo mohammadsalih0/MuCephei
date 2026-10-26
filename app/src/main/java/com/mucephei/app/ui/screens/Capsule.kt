@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import com.mucephei.app.util.preferredHighestRefreshRate
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -353,6 +354,7 @@ fun Capsule(
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize().preferredHighestRefreshRate(),
         topBar = {
             TopAppBar(
                 title = {

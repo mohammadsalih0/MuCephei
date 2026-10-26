@@ -48,6 +48,7 @@ fun OasisBottomBar(
     onDownloadManagerClick: () -> Unit,
     onBrowserSettingsClick: () -> Unit,
     onToolbarSettingsClick: () -> Unit,
+    onNewTab: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -179,23 +180,23 @@ fun OasisBottomBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Back Button
+                /* Back Button
                 ThemedActionButton(
                     onClick = onBackClick,
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = if (canGoBack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                )
+                ) */
 
-                // Forward Button
+                /* Forward Button
                 ThemedActionButton(
                     onClick = onForwardClick,
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Forward",
                     tint = if (canGoForward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                )
+                )*/
 
                 // Address Input Field
                 val isUrl = isUrlInput(addressInputState.text)
@@ -255,6 +256,15 @@ fun OasisBottomBar(
                             }
                         }
                     }
+                )
+
+                // New tab button
+                ThemedActionButton(
+                    onClick = onNewTab,
+                    icon = Icons.Default.Add,
+                    contentDescription = "New Tab",
+                    tint = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
                 )
 
                 // Tabs Switcher Button
