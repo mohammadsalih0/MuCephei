@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
+  "versionCode": 2,
   "versionName": "2.1.0",
-  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v1.0-stable/app-release.apk",
-  "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v1.0-stable",
+  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.1.0/app-release.apk",
+  "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v2.1.0",
   "sha256": "",
   "changelog": "- Added self-update feature with background check\n- Top bar update icon & changelog dialog\n- SHA-256 APK integrity verification\n- Browser fallback download option"
 }
