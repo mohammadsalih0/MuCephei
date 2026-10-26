@@ -1,3 +1,12 @@
 # Project Rules: Remote CI/CD & GitHub First
 - **Build Execution:** Heavy builds and compilation happen on GitHub Actions, not locally.
 - **Debugging:** Use `gh run list` and `gh run view` to fetch remote build logs when troubleshooting.
+- **Version Management:** 
+  - When preparing a release, manually bump `versionCode` (integer) and `versionName` (string) in both `app/build.gradle.kts` and `version.json`.
+  - Keep local `versionCode` aligned with `version.json` during active development on `main` to prevent false update prompts.
+- **Changelog Single Source of Truth:**
+  - Maintain release changelogs in `version.json` (`changelog` field). The GitHub Actions CI/CD pipeline automatically extracts this changelog when publishing GitHub Releases.
+- **Release Signing & Tags:**
+  - Releases are triggered by pushing a tag (e.g., `git tag v2.1.0 && git push origin v2.1.0`). Ensure GitHub repository secrets (`SIGNING_KEY`, `ALIAS`, `KEY_STORE_PASSWORD`, `KEY_PASSWORD`) are configured.
+- **Update Testing Workflow:** To test the in-app update dialog instantly without pushing tags, temporarily lower local `versionCode` in `app/build.gradle.kts` below `version.json`.
+- **Zero Local Gradle Overhead:** Never run heavy local release builds (`assembleRelease`) unless testing signing configuration; rely on GitHub Actions for release artifacts.

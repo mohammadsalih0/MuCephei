@@ -49,8 +49,10 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import com.mucephei.app.ui.components.ThemedActionButton
 import com.mucephei.app.ui.components.ThemedActionTextButton
+import com.mucephei.app.ui.components.VoiceTranscribeWidget
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -148,6 +150,7 @@ fun NoteDetailScreen(
     var currentNote by remember { mutableStateOf(Note(title = "", bodyText = "")) }
     var isDrawingMode by remember { mutableStateOf(false) }
     var isVoiceRecorderActive by remember { mutableStateOf(false) }
+    var isVoiceTranscribeActive by remember { mutableStateOf(false) }
 
     var activeLightboxMedia by remember { mutableStateOf<MediaItem?>(null) }
     var activeVideoMedia by remember { mutableStateOf<MediaItem?>(null) }
@@ -345,6 +348,24 @@ fun NoteDetailScreen(
             isVoiceRecorderActive = true
         } else {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Transcribe permission launcher
+    val transcribePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            isVoiceTranscribeActive = true
+        }
+    }
+
+    fun requestMicPermissionAndTranscribe() {
+        focusManager.clearFocus()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            isVoiceTranscribeActive = true
+        } else {
+            transcribePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -789,6 +810,24 @@ fun NoteDetailScreen(
                 )
             }
 
+            // Interactive Voice Transcribe Widget
+            if (isVoiceTranscribeActive) {
+                Spacer(modifier = Modifier.height(8.dp))
+                VoiceTranscribeWidget(
+                    onTextSegment = { segment ->
+                        val spacePrefix = if (currentNote.bodyText.isNotEmpty() && (!currentNote.bodyText.endsWith(" ")) && (!segment.startsWith(" "))) " " else ""
+                        currentNote = currentNote.copy(bodyText = currentNote.bodyText + spacePrefix + segment)
+                    },
+                    onTranscriptionComplete = { audioItem ->
+                        if (audioItem.uri.startsWith("/")) {
+                            currentNote = currentNote.copy(media = currentNote.media + audioItem)
+                        }
+                        isVoiceTranscribeActive = false
+                    },
+                    onCancel = { isVoiceTranscribeActive = false },
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // BOTTOM ACTION TOOLBAR
@@ -864,6 +903,17 @@ fun NoteDetailScreen(
                     },
                     icon = Icons.Default.Mic,
                     contentDescription = "Voice Memo",
+                    tint = accent,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                )
+
+                // Voice Transcribe Button
+                ThemedActionButton(
+                    onClick = {
+                        requestMicPermissionAndTranscribe()
+                    },
+                    icon = Icons.Default.RecordVoiceOver,
+                    contentDescription = "Voice Transcribe",
                     tint = accent,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
                 )
