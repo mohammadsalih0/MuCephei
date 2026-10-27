@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "2.1.0",
-  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.1.0/MuCephei-v2.1.0.apk",
-  "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v2.1.0",
+  "versionCode": 4,
+  "versionName": "2.2",
+  "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.2/MuCephei-v2.2.apk",
+  "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v2.2",
   "sha256": "",
-  "changelog": "- In-App Updates: Background check on startup with top-bar update notification & changelog dialog\n- Pull-to-Refresh in Oasis: Smooth page reloading matching Material 3 theme colors\n- Edge Swipe Navigation: Swipe right to go back, swipe left to go forward in Oasis history\n- Performance Boost: Lazy WebView initialization for lightning-fast app startup\n- Polished UI: Aligned Oasis bottom bar buttons and address bar"
+  "changelog": "🟧 ✓ Attached Audio Transcribe Dialog:\n  🟠 ✓ One-tap insertion for pre-saved transcripts.\n  🟠 ✓ On-device AI transcription via Whisper.cpp.\n  🟠 ✓ Built-in audio playback controls (Play/Pause) and fallback live dictation launch.\n🟧 ✓ Live Voice Transcribe Widget:\n  🟠 ✓ Real-time speech-to-text powered by Android's SpeechRecognizer.\n  🟠 ✓ Multi-language selection with strict preference enforcement and auto-switching."
 }
