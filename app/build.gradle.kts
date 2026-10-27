@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.File
 
 plugins {
     alias(libs.plugins.android.application)
@@ -11,6 +12,12 @@ val localProperties = Properties().apply {
     if (localPropertiesFile.exists()) {
         localPropertiesFile.inputStream().use { load(it) }
     }
+}
+
+val hasCcache = (System.getenv("PATH") ?: "").split(File.pathSeparator).any { dirPath ->
+    val dir = File(dirPath)
+    File(dir, "ccache").let { it.exists() && it.canExecute() } ||
+            File(dir, "ccache.exe").let { it.exists() && it.canExecute() }
 }
 
 android {
@@ -27,7 +34,9 @@ android {
         vectorDrawables { useSupportLibrary = true }
         externalNativeBuild {
             cmake {
-                arguments("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+                if (hasCcache) {
+                    arguments("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+                }
             }
         }
     }
