@@ -4,5 +4,5 @@
   "downloadUrl": "https://github.com/mohammadsalih0/MuCephei/releases/download/v2.2/MuCephei-v2.2.apk",
   "releaseUrl": "https://github.com/mohammadsalih0/MuCephei/releases/tag/v2.2",
   "sha256": "",
-  "changelog": "🟧 ✓ Attached Audio Transcribe Dialog:\n  🟠 ✓ One-tap insertion for pre-saved transcripts.\n  🟠 ✓ On-device AI transcription via Whisper.cpp.\n  🟠 ✓ Built-in audio playback controls (Play/Pause) and fallback live dictation launch.\n🟧 ✓ Live Voice Transcribe Widget:\n  🟠 ✓ Real-time speech-to-text powered by Android's SpeechRecognizer.\n  🟠 ✓ Multi-language selection with strict preference enforcement and auto-switching."
+  "changelog": "• Attached Audio Transcribe Dialog:\n  🔸 One-tap insertion for pre-saved transcripts.\n  🔸 On-device AI transcription via Whisper.cpp.\n  🔸 Built-in audio playback controls & fallback live dictation.\n\n• Live Voice Transcribe Widget:\n  🔸 Real-time speech-to-text via Android's SpeechRecognizer.\n  🔸 Multi-language selection with strict preference enforcement."
 }
