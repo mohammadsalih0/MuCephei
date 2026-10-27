@@ -25,6 +25,11 @@ android {
         versionName = "2.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        externalNativeBuild {
+            cmake {
+                arguments("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+            }
+        }
     }
 
     val envStoreFile = System.getenv("SIGNING_STORE_FILE")
