@@ -154,7 +154,7 @@ fun UpdateAvailableDialog(
                                 }
                             }
                         ) {
-                            Text(if (downloadState is DownloadState.CorruptHashMismatch) "Retry Download" else "Update Now")
+                            Text(if (downloadState is DownloadState.CorruptHashMismatch) "Retry Download" else "Update")
                         }
                     }
                 }
