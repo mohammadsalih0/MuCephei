@@ -21,6 +21,7 @@ add_definitions(
 set(SOURCES
     whisper_jni.cpp
     whisper.cpp
+    aneforge/whisper-aneforge.cpp
     ggml/src/ggml.c
     ggml/src/ggml.cpp
     ggml/src/ggml-alloc.c
