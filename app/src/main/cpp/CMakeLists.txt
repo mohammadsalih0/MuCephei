@@ -47,11 +47,17 @@ set(SOURCES
     ggml/src/ggml-cpu/vec.cpp
     ggml/src/ggml-cpu/tiled/tiled.cpp
     ggml/src/ggml-cpu/tiled/tiled-kernel.cpp
-    ggml/src/ggml-cpu/llamafile/sgemm.cpp
 )
 
 # Architecture-specific CPU implementations
-if (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} STREQUAL "armeabi-v7a")
+if (${ANDROID_ABI} STREQUAL "arm64-v8a")
+    list(APPEND SOURCES
+        ggml/src/ggml-cpu/llamafile/sgemm.cpp
+        ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp
+        ggml/src/ggml-cpu/arch/arm/quants.c
+        ggml/src/ggml-cpu/arch/arm/repack.cpp
+    )
+elseif (${ANDROID_ABI} STREQUAL "armeabi-v7a")
     list(APPEND SOURCES
         ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp
         ggml/src/ggml-cpu/arch/arm/quants.c
@@ -59,6 +65,7 @@ if (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} STREQUAL "armeabi-v7a"
     )
 elseif (${ANDROID_ABI} STREQUAL "x86_64" OR ${ANDROID_ABI} STREQUAL "x86")
     list(APPEND SOURCES
+        ggml/src/ggml-cpu/llamafile/sgemm.cpp
         ggml/src/ggml-cpu/arch/x86/cpu-feats.cpp
         ggml/src/ggml-cpu/arch/x86/quants.c
         ggml/src/ggml-cpu/arch/x86/repack.cpp
