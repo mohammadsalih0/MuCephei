@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,13 +42,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.mucephei.app.ai.ModelManager
+import com.mucephei.app.ai.WhisperCppEngine
 import com.mucephei.app.data.model.MediaItem
 import com.mucephei.app.theme.HandwritingTypography
+import com.mucephei.app.util.AudioUtils
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
  * Dialog for transcribing an attached audio file:
  * - If a transcript was saved during recording, provides a 1-tap "Insert Saved Transcript" button.
+ * - If Whisper.cpp engine is loaded, provides "Transcribe with Whisper.cpp (AI)".
  * - Otherwise, plays the audio recording with MediaPlayer controls and provides "Start Live Voice Dictation".
  */
 @Composable
@@ -57,15 +63,18 @@ fun AttachedAudioTranscribeDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(value = false) }
     var isDictating by remember { mutableStateOf(value = false) }
+    var statusText by remember { mutableStateOf(value = "Audio ready") }
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val savedTranscript = mediaItem.metadata.transcript
+    val whisperEngine = remember { ModelManager.activeEngine as? WhisperCppEngine }
 
     LaunchedEffect(mediaItem) {
-        if (savedTranscript.isNullOrBlank()) {
+        if (savedTranscript.isNullOrBlank() && whisperEngine == null) {
             try {
                 val player = MediaPlayer().apply {
                     val uri = if (mediaItem.uri.startsWith("/")) {
@@ -150,6 +159,12 @@ fun AttachedAudioTranscribeDialog(
                     style = HandwritingTypography.labelMedium,
                     color = primaryColor,
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = statusText,
+                    style = HandwritingTypography.labelSmall,
+                    color = primaryColor.copy(alpha = 0.8f),
+                )
                 Spacer(modifier = Modifier.height(14.dp))
 
                 if (!savedTranscript.isNullOrBlank()) {
@@ -173,8 +188,41 @@ fun AttachedAudioTranscribeDialog(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Insert Saved Transcript", style = HandwritingTypography.titleMedium, color = MaterialTheme.colorScheme.onPrimary)
                     }
+                } else if (whisperEngine != null) {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                statusText = "Transcribing with Whisper.cpp (AI)..."
+                                try {
+                                    val audioUri = if (mediaItem.uri.startsWith("/")) {
+                                        Uri.fromFile(File(mediaItem.uri))
+                                    } else {
+                                        Uri.parse(mediaItem.uri)
+                                    }
+                                    val floats = AudioUtils.decodeAudioToFloatArray(context, audioUri)
+                                    val text = whisperEngine.transcribeAudio(floats)
+                                    if (text.isNotBlank()) {
+                                        onTextSegment(text)
+                                        onDismiss()
+                                    } else {
+                                        statusText = "Whisper transcription returned empty."
+                                    }
+                                } catch (e: Exception) {
+                                    statusText = "Error: ${e.localizedMessage}"
+                                    e.printStackTrace()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(imageVector = Icons.Default.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Transcribe with Whisper.cpp (AI)", style = HandwritingTypography.titleMedium, color = MaterialTheme.colorScheme.onPrimary)
+                    }
                 } else {
-                    // Audio Playbank Controller Row
+                    // Audio Playback Controller Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

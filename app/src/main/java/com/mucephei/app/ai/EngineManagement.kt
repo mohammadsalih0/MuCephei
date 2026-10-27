@@ -157,7 +157,7 @@ class LlamaCppEngine(private val context: Context) : LLMEngine {
 }
 
 enum class EngineType {
-    MEDIAPIPE, EXECUTORCH, GGUF, UNKNOWN
+    MEDIAPIPE, EXECUTORCH, GGUF, WHISPER, UNKNOWN
 }
 
 class LlamaModule(
@@ -193,10 +193,12 @@ class DynamicModelManager(private val context: Context) {
         private set
 
     fun detectEngineType(file: File): EngineType {
-        return when (file.extension.lowercase()) {
-            "bin", "task", "litertlm" -> EngineType.MEDIAPIPE
-            "pte" -> EngineType.EXECUTORCH
-            "gguf" -> EngineType.GGUF
+        val name = file.name.lowercase()
+        return when {
+            name.contains("whisper") || (file.extension.lowercase() == "bin" && (name.startsWith("ggml-") || name.contains("base") || name.contains("tiny") || name.contains("small") || name.contains("medium") || name.contains("large"))) -> EngineType.WHISPER
+            file.extension.lowercase() in setOf("bin", "task", "litertlm") -> EngineType.MEDIAPIPE
+            file.extension.lowercase() == "pte" -> EngineType.EXECUTORCH
+            file.extension.lowercase() == "gguf" -> EngineType.GGUF
             else -> EngineType.UNKNOWN
         }
     }
@@ -209,6 +211,7 @@ class DynamicModelManager(private val context: Context) {
             EngineType.MEDIAPIPE -> MediaPipeEngine(context)
             EngineType.EXECUTORCH -> ExecuTorchEngine(context)
             EngineType.GGUF -> LlamaCppEngine(context)
+            EngineType.WHISPER -> WhisperCppEngine(context)
             EngineType.UNKNOWN -> throw IllegalArgumentException("Error: Unsupported model format ${modelFile.name}")
         }
         newEngine.loadModel(modelFile)
