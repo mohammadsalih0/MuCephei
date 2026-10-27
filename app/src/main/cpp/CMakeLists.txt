@@ -17,6 +17,7 @@ add_definitions(
     -DWHISPER_VERSION="1.5.0"
 )
 
+# Core GGML and Whisper source files
 set(SOURCES
     whisper_jni.cpp
     whisper.cpp
@@ -31,14 +32,37 @@ set(SOURCES
     ggml/src/ggml-quants.c
     ggml/src/gguf.cpp
     ggml/src/ggml-threading.cpp
+
+    # GGML CPU backend core
     ggml/src/ggml-cpu/ggml-cpu.c
     ggml/src/ggml-cpu/ggml-cpu.cpp
     ggml/src/ggml-cpu/binary-ops.cpp
     ggml/src/ggml-cpu/unary-ops.cpp
     ggml/src/ggml-cpu/ops.cpp
     ggml/src/ggml-cpu/quants.c
+    ggml/src/ggml-cpu/repack.cpp
+    ggml/src/ggml-cpu/traits.cpp
+    ggml/src/ggml-cpu/hbm.cpp
     ggml/src/ggml-cpu/vec.cpp
+    ggml/src/ggml-cpu/tiled/tiled.cpp
+    ggml/src/ggml-cpu/tiled/tiled-kernel.cpp
+    ggml/src/ggml-cpu/llamafile/sgemm.cpp
 )
+
+# Architecture-specific CPU implementations
+if (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} STREQUAL "armeabi-v7a")
+    list(APPEND SOURCES
+        ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp
+        ggml/src/ggml-cpu/arch/arm/quants.c
+        ggml/src/ggml-cpu/arch/arm/repack.cpp
+    )
+elseif (${ANDROID_ABI} STREQUAL "x86_64" OR ${ANDROID_ABI} STREQUAL "x86")
+    list(APPEND SOURCES
+        ggml/src/ggml-cpu/arch/x86/cpu-feats.cpp
+        ggml/src/ggml-cpu/arch/x86/quants.c
+        ggml/src/ggml-cpu/arch/x86/repack.cpp
+    )
+endif()
 
 add_library(whisper_jni SHARED ${SOURCES})
 
