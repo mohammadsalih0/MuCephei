@@ -109,3 +109,5 @@ Thumbs.db
 # External native build output
 .cxx/
 /.cxx/
+
+cicd.md
